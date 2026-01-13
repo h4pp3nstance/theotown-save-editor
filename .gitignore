@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts (optional - uncomment if you don't want to commit dist/)
+# dist/

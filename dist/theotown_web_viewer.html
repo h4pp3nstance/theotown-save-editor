@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TheoTown Save Editor</title>
+    <!-- pako for gzip compression -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+    <style>
+/**
+ * TheoTown Save Editor - Styles
+ * All CSS for the web viewer
+ */
+
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-tertiary: #0f3460;
+    --text-primary: #eee;
+    --text-secondary: #aaa;
+    --accent: #e94560;
+    --accent-hover: #ff6b6b;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --border: #333;
+    --input-bg: #222;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+}
+
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+h1 {
+    text-align: center;
+    color: var(--accent);
+    margin-bottom: 5px;
+}
+
+.version {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+    margin-bottom: 20px;
+}
+
+/* File Info / Drop Zone */
+#fileInfo {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 40px;
+    text-align: center;
+    border: 2px dashed var(--border);
+    transition: all 0.3s ease;
+}
+
+#fileInfo.drag-over {
+    border-color: var(--accent);
+    background: var(--bg-tertiary);
+}
+
+#fileInfo p {
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+}
+
+input[type="file"] {
+    display: none;
+}
+
+.file-label {
+    display: inline-block;
+    padding: 12px 30px;
+    background: var(--accent);
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.3s;
+}
+
+.file-label:hover {
+    background: var(--accent-hover);
+}
+
+/* Editor Panel */
+#editor {
+    display: none;
+}
+
+.panel {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.panel h2 {
+    color: var(--accent);
+    margin-top: 0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 10px;
+}
+
+/* Info Grid */
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.info-item {
+    background: var(--bg-tertiary);
+    padding: 10px 15px;
+    border-radius: 5px;
+}
+
+.info-item label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.85em;
+    margin-bottom: 3px;
+}
+
+.info-item span {
+    font-size: 1.1em;
+    font-weight: bold;
+}
+
+/* Edit Table */
+.edit-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.edit-table th,
+.edit-table td {
+    padding: 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.edit-table th {
+    color: var(--text-secondary);
+    font-weight: normal;
+    font-size: 0.9em;
+}
+
+.edit-table input[type="number"] {
+    width: 100%;
+    max-width: 150px;
+    padding: 8px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--text-primary);
+    font-size: 1em;
+}
+
+.edit-table input[type="number"]:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.offset {
+    font-family: monospace;
+    color: var(--text-secondary);
+    font-size: 0.9em;
+}
+
+/* Status badges */
+.status-on {
+    color: var(--success);
+    font-weight: bold;
+}
+
+.status-off {
+    color: var(--text-secondary);
+}
+
+/* Buttons */
+.btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: all 0.3s;
+    margin-right: 10px;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: var(--accent-hover);
+}
+
+.btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+    background: #1a4880;
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 0.9em;
+}
+
+.btn-warning {
+    background: var(--warning);
+    color: #000;
+}
+
+.btn-warning:hover {
+    background: #f59e0b;
+}
+
+/* Actions panel */
+.actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Messages */
+#error {
+    display: none;
+    background: #7f1d1d;
+    color: #fecaca;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+#success {
+    display: none;
+    background: #14532d;
+    color: #bbf7d0;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+}
+
+#changesIndicator {
+    display: none;
+    background: var(--warning);
+    color: #000;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 20px;
+    font-weight: bold;
+}
+
+/* Loader */
+#loader {
+    display: none;
+    text-align: center;
+    padding: 40px;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+    
+    .panel {
+        padding: 15px;
+    }
+    
+    .info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .actions {
+        flex-direction: column;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-right: 0;
+    }
+}
+
+/* Tooltip */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    cursor: help;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    background: #333;
+    color: #fff;
+    text-align: center;
+    padding: 5px 10px;
+    border-radius: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    white-space: nowrap;
+    font-size: 0.85em;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Read-only field */
+.readonly {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Section divider */
+.section-divider {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 20px 0;
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏙️ TheoTown Save Editor</h1>
+        <p class="version">v3.0 - Built 2026-01-13</p>
+        
+        <div id="error"></div>
+        <div id="success"></div>
+        <div id="changesIndicator">⚠️ You have unsaved changes</div>
+        
+        <div id="loader">
+            <div class="spinner"></div>
+            <p>Loading city data...</p>
+        </div>
+        
+        <!-- File Selection -->
+        <div id="fileInfo" id="dropZone">
+            <h2>📂 Select a City File</h2>
+            <p>Choose a .city file from your TheoTown save folder<br>
+            <small>Supports regular cities and moon files</small></p>
+            <label class="file-label">
+                <input type="file" id="fileInput" accept=".city">
+                Browse Files
+            </label>
+            <p style="margin-top: 20px; font-size: 0.9em;">
+                Or drag and drop a .city file here
+            </p>
+        </div>
+        
+        <!-- Editor Panel -->
+        <div id="editor">
+            <!-- City Info -->
+            <div class="panel">
+                <h2>📋 City Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>City Name</label>
+                        <span id="cityName">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Size</label>
+                        <span id="citySize">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Version</label>
+                        <span id="cityVersion">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Game Mode</label>
+                        <span id="cityGamemode">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Population</label>
+                        <span id="cityPopulation">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Playtime</label>
+                        <span id="cityPlaytime">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Save Count</label>
+                        <span id="citySaves">-</span>
+                    </div>
+                    <div class="info-item">
+                        <label>Last Modified</label>
+                        <span id="cityLastModified">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Header Editor -->
+            <div class="panel">
+                <h2>📝 Header Values</h2>
+                <table class="edit-table">
+                    <tr>
+                        <th>Field</th>
+                        <th>Value</th>
+                        <th>Note</th>
+                    </tr>
+                    <tr>
+                        <td>Money</td>
+                        <td><input type="number" id="headerMoney" min="0"></td>
+                        <td>JSON header value</td>
+                    </tr>
+                    <tr>
+                        <td>Rank Level</td>
+                        <td><input type="number" id="headerRank" min="0" max="5000"></td>
+                        <td>0-5000</td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Binary Editor -->
+            <div class="panel">
+                <h2>🔧 Binary Values</h2>
+                <table class="edit-table">
+                    <tr>
+                        <th>Field</th>
+                        <th>Value</th>
+                        <th>Offset</th>
+                        <th>Action</th>
+                    </tr>
+                    <tr id="binaryEstateRow">
+                        <td>Estate (Money)</td>
+                        <td><input type="number" id="binaryEstate" min="0"></td>
+                        <td class="offset" id="estateOffset">-</td>
+                        <td></td>
+                    </tr>
+                    <tr id="binaryRankRow">
+                        <td>Rank Level</td>
+                        <td><input type="number" id="binaryRank" min="0" max="5000"></td>
+                        <td class="offset" id="rankOffset">-</td>
+                        <td></td>
+                    </tr>
+                    <tr id="uberRow">
+                        <td>Uber Mode</td>
+                        <td><span id="uberStatus" class="status-off">OFF</span></td>
+                        <td class="offset" id="uberOffset">-</td>
+                        <td><button class="btn btn-small btn-warning" id="toggleUberBtn">Toggle</button></td>
+                    </tr>
+                    <tr id="gamemodeRow">
+                        <td>Gamemode</td>
+                        <td><span id="gamemodeValue" class="readonly">-</span></td>
+                        <td class="offset" id="gamemodeOffset">-</td>
+                        <td><span class="readonly">(read-only)</span></td>
+                    </tr>
+                    <tr id="dsaRow">
+                        <td>DSA Supplies</td>
+                        <td><input type="number" id="dsaSupplies" min="0" max="32767"></td>
+                        <td class="offset" id="dsaOffset">-</td>
+                        <td>
+                            <span class="tooltip">ℹ️
+                                <span class="tooltip-text">_dsarocketprocentage - Max: 32767</span>
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+            
+            <!-- Actions -->
+            <div class="panel">
+                <h2>💾 Actions</h2>
+                <div class="actions">
+                    <button class="btn btn-primary" id="saveBtn">💾 Save File</button>
+                    <button class="btn btn-secondary" id="resetBtn">🔄 Reset Changes</button>
+                    <button class="btn btn-secondary" id="closeBtn">❌ Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+
+// === binary.js ===
+/**
+ * TheoTown Save Editor - Binary Utilities
+ * Low-level binary read/write operations
+ */
+
+const BinaryUtils = {
+    /**
+     * Read 4-byte big-endian integer (with bounds check)
+     */
+    readInt32BE(data, offset) {
+        if (!data || offset < 0 || offset + 4 > data.length) return 0;
+        return (data[offset] << 24) | (data[offset+1] << 16) | 
+               (data[offset+2] << 8) | data[offset+3];
+    },
+
+    /**
+     * Read 2-byte big-endian integer (with bounds check)
+     */
+    readInt16BE(data, offset) {
+        if (!data || offset < 0 || offset + 2 > data.length) return 0;
+        return (data[offset] << 8) | data[offset+1];
+    },
+
+    /**
+     * Write 4-byte big-endian integer (with bounds check)
+     */
+    writeInt32BE(data, offset, value) {
+        if (!data || offset < 0 || offset + 4 > data.length) return false;
+        value = value >>> 0; // Convert to unsigned
+        data[offset] = (value >> 24) & 0xFF;
+        data[offset+1] = (value >> 16) & 0xFF;
+        data[offset+2] = (value >> 8) & 0xFF;
+        data[offset+3] = value & 0xFF;
+        return true;
+    },
+
+    /**
+     * Write 2-byte big-endian integer (with bounds check)
+     */
+    writeInt16BE(data, offset, value) {
+        if (!data || offset < 0 || offset + 2 > data.length) return false;
+        value = value & 0xFFFF;
+        data[offset] = (value >> 8) & 0xFF;
+        data[offset+1] = value & 0xFF;
+        return true;
+    },
+
+    /**
+     * Find a byte pattern in data and return offset
+     * @param {Uint8Array} data - Binary data to search
+     * @param {number[]} pattern - Pattern to find
+     * @returns {number} Offset or -1 if not found
+     */
+    findPattern(data, pattern) {
+        outer:
+        for (let i = 0; i <= data.length - pattern.length; i++) {
+            for (let j = 0; j < pattern.length; j++) {
+                if (data[i + j] !== pattern[j]) continue outer;
+            }
+            return i;
+        }
+        return -1;
+    },
+
+    /**
+     * Type byte constants for TheoTown binary format
+     */
+    TYPE: {
+        DOUBLE: 0x07,      // 8 bytes
+        INT32: 0x08,       // 4 bytes
+        INT16: 0x0e,       // 2 bytes
+        INT8: 0x0f,        // 1 byte
+        BOOL_TRUE: 0x11,   // No value byte
+        BOOL_FALSE: 0x12,  // No value byte
+        STRING: 0x16       // Variable length
+    }
+};
+
+// Export for module systems
+
+
+// === parser.js ===
+/**
+ * TheoTown Save Editor - File Parser
+ * Handles .city file format parsing and serialization
+ */
+
+const FileParser = {
+    /**
+     * Parse a .city file
+     * @param {ArrayBuffer} buffer - Raw file data
+     * @returns {Object} Parsed city data with header and binary
+     */
+    async parse(buffer) {
+        const data = new Uint8Array(buffer);
+        
+        // Parse header length (big-endian 2 bytes)
+        const headerLen = (data[0] << 8) | data[1];
+        
+        // Parse JSON header
+        const headerBytes = data.slice(2, 2 + headerLen);
+        const headerText = new TextDecoder('utf-8').decode(headerBytes);
+        const header = JSON.parse(headerText);
+        
+        // Decompress binary data using pako
+        const compressedData = data.slice(2 + headerLen);
+        let binaryData;
+        try {
+            binaryData = pako.ungzip(compressedData);
+        } catch (e) {
+            throw new Error('Error decompressing file: ' + e.message);
+        }
+        
+        // Convert to mutable Uint8Array
+        binaryData = new Uint8Array(binaryData);
+        
+        return {
+            header: header,
+            binaryData: binaryData,
+            originalHeader: JSON.parse(JSON.stringify(header)),
+            originalBinary: new Uint8Array(binaryData)
+        };
+    },
+
+    /**
+     * Serialize city data back to .city file format
+     * @param {Object} cityData - City data with header and binaryData
+     * @returns {Uint8Array} Serialized file data
+     */
+    serialize(cityData) {
+        // Update timestamp and save counter
+        cityData.header['last modified'] = Date.now();
+        cityData.header['save counter'] = (cityData.header['save counter'] || 0) + 1;
+        
+        // Encode header
+        const headerStr = JSON.stringify(cityData.header);
+        const headerBytes = new TextEncoder().encode(headerStr);
+        const headerLen = headerBytes.length;
+        
+        // Compress binary data
+        const compressedBinary = pako.gzip(cityData.binaryData);
+        
+        // Build file
+        const fileData = new Uint8Array(2 + headerLen + compressedBinary.length);
+        fileData[0] = (headerLen >> 8) & 0xFF;
+        fileData[1] = headerLen & 0xFF;
+        fileData.set(headerBytes, 2);
+        fileData.set(compressedBinary, 2 + headerLen);
+        
+        return fileData;
+    },
+
+    /**
+     * Get file info for display
+     * @param {Object} header - Parsed header
+     * @returns {Object} Formatted file info
+     */
+    getFileInfo(header) {
+        return {
+            name: header.name || '(Unnamed)',
+            size: `${header.width}x${header.height}`,
+            gamemode: header.gamemode || 'UNKNOWN',
+            version: header.version || 'Unknown',
+            money: header.money || 0,
+            population: header.habitants || 0,
+            rank: header['rank lvl'] || 0,
+            uber: header.uber === true,
+            playtime: header.info?.playtime || 0,
+            saves: header['save counter'] || 0,
+            lastModified: header['last modified']
+        };
+    }
+};
+
+// Export for module systems
+
+
+// === fields.js ===
+/**
+ * TheoTown Save Editor - Binary Field Detection & Manipulation
+ * Handles finding and editing binary fields in city data
+ */
+
+const BinaryFields = {
+    // Field name constants
+    FIELD_NAMES: {
+        ESTATE: 'estate',
+        RANK: 'rank lvl',
+        UBER: 'uber',
+        GAMEMODE: 'gamemode',
+        DSA_SUPPLIES: '_dsarocketprocentage'
+    },
+
+    /**
+     * Find a binary field by name
+     * @param {Uint8Array} data - Binary data
+     * @param {string} fieldName - Field name to find
+     * @returns {Object|null} Field info with nameOffset, typeOffset, valueOffset, type
+     */
+    findField(data, fieldName) {
+        const pattern = new TextEncoder().encode(fieldName);
+        
+        for (let i = 0; i < data.length - pattern.length - 2; i++) {
+            // Check length byte
+            if (data[i] !== pattern.length) continue;
+            
+            // Check field name
+            let match = true;
+            for (let j = 0; j < pattern.length; j++) {
+                if (data[i + 1 + j] !== pattern[j]) {
+                    match = false;
+                    break;
+                }
+            }
+            
+            if (match) {
+                const typeOffset = i + 1 + pattern.length;
+                const typeByte = data[typeOffset];
+                
+                // Determine value offset based on type
+                let valueOffset = typeOffset + 1;
+                
+                // Bool types (0x11, 0x12) have NO value byte - the type IS the value
+                if (typeByte === 0x11 || typeByte === 0x12) {
+                    valueOffset = typeOffset; // Value is the type byte itself
+                }
+                
+                return {
+                    nameOffset: i,
+                    typeOffset: typeOffset,
+                    valueOffset: valueOffset,
+                    type: typeByte,
+                    fieldName: fieldName
+                };
+            }
+        }
+        
+        return null;
+    },
+
+    /**
+     * Find all relevant fields in binary data
+     * @param {Uint8Array} data - Binary data
+     * @returns {Object} Map of field names to field info
+     */
+    findAllFields(data) {
+        const fields = {};
+        
+        for (const [key, name] of Object.entries(this.FIELD_NAMES)) {
+            const field = this.findField(data, name);
+            if (field) {
+                fields[key] = field;
+            }
+        }
+        
+        return fields;
+    },
+
+    /**
+     * Read estate (money) value
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @returns {number|null} Estate value
+     */
+    readEstate(data, field) {
+        if (!field || field.type !== 0x07) return null; // Must be double
+        
+        const bytes = data.slice(field.valueOffset, field.valueOffset + 8);
+        const view = new DataView(bytes.buffer);
+        return view.getFloat64(0, false); // Big-endian
+    },
+
+    /**
+     * Write estate (money) value
+     * @param {Uint8Array} data - Binary data (modified in place)
+     * @param {Object} field - Field info from findField
+     * @param {number} value - New value
+     */
+    writeEstate(data, field, value) {
+        if (!field || field.type !== 0x07) return;
+        
+        const buffer = new ArrayBuffer(8);
+        const view = new DataView(buffer);
+        view.setFloat64(0, value, false); // Big-endian
+        
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < 8; i++) {
+            data[field.valueOffset + i] = bytes[i];
+        }
+    },
+
+    /**
+     * Read rank value
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @returns {number|null} Rank value
+     */
+    readRank(data, field) {
+        if (!field || field.type !== 0x0e) return null; // Must be int16
+        return (data[field.valueOffset] << 8) | data[field.valueOffset + 1];
+    },
+
+    /**
+     * Write rank value
+     * @param {Uint8Array} data - Binary data (modified in place)
+     * @param {Object} field - Field info from findField
+     * @param {number} value - New value (0-5000)
+     */
+    writeRank(data, field, value) {
+        if (!field || field.type !== 0x0e) return;
+        
+        value = Math.max(0, Math.min(5000, value));
+        data[field.valueOffset] = (value >> 8) & 0xFF;
+        data[field.valueOffset + 1] = value & 0xFF;
+    },
+
+    /**
+     * Read uber mode value
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @returns {boolean|null} Uber mode value
+     */
+    readUber(data, field) {
+        if (!field) return null;
+        // 0x11 = TRUE, 0x12 = FALSE
+        return field.type === 0x11;
+    },
+
+    /**
+     * Write uber mode value (toggle)
+     * @param {Uint8Array} data - Binary data (modified in place)
+     * @param {Object} field - Field info from findField
+     * @param {boolean} value - New value
+     */
+    writeUber(data, field, value) {
+        if (!field) return;
+        // Just change the type byte: 0x11 = TRUE, 0x12 = FALSE
+        data[field.typeOffset] = value ? 0x11 : 0x12;
+    },
+
+    /**
+     * Read gamemode value (string)
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @returns {string|null} Gamemode string
+     */
+    readGamemode(data, field) {
+        if (!field || field.type !== 0x16) return null; // Must be string
+        
+        // String format: [type][length_int16_BE][string_bytes]
+        const strLen = (data[field.valueOffset] << 8) | data[field.valueOffset + 1];
+        const strBytes = data.slice(field.valueOffset + 2, field.valueOffset + 2 + strLen);
+        return new TextDecoder('utf-8').decode(strBytes);
+    },
+
+    /**
+     * Read DSA supplies value
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @returns {number|null} DSA supplies value
+     */
+    readDsaSupplies(data, field) {
+        if (!field || field.type !== 0x0e) return null; // Must be int16
+        return (data[field.valueOffset] << 8) | data[field.valueOffset + 1];
+    },
+
+    /**
+     * Write DSA supplies value
+     * @param {Uint8Array} data - Binary data (modified in place)
+     * @param {Object} field - Field info from findField
+     * @param {number} value - New value (0-32767)
+     */
+    writeDsaSupplies(data, field, value) {
+        if (!field || field.type !== 0x0e) return;
+        
+        value = Math.max(0, Math.min(32767, value));
+        data[field.valueOffset] = (value >> 8) & 0xFF;
+        data[field.valueOffset + 1] = value & 0xFF;
+    }
+};
+
+// Export for module systems
+
+
+// === city.js ===
+/**
+ * TheoTown Save Editor - City Manager
+ * High-level city data management
+ */
+
+const CityManager = {
+    // Current city state
+    currentCity: null,
+    fileName: null,
+    binaryFields: null,
+    hasChanges: false,
+
+    /**
+     * Load a city file
+     * @param {File} file - File object from input
+     * @returns {Promise<Object>} Loaded city data
+     */
+    async load(file) {
+        const buffer = await file.arrayBuffer();
+        this.currentCity = await FileParser.parse(buffer);
+        this.fileName = file.name;
+        this.hasChanges = false;
+        
+        // Find all binary fields
+        this.binaryFields = BinaryFields.findAllFields(this.currentCity.binaryData);
+        
+        return this.getDisplayData();
+    },
+
+    /**
+     * Get city data formatted for UI display
+     * @returns {Object} Display-ready city data
+     */
+    getDisplayData() {
+        if (!this.currentCity) return null;
+        
+        const header = this.currentCity.header;
+        const binary = this.currentCity.binaryData;
+        const fields = this.binaryFields;
+        
+        // Read binary values
+        let binaryEstate = null;
+        let binaryRank = null;
+        let binaryUber = null;
+        let binaryGamemode = null;
+        let binaryDsaSupplies = null;
+        
+        if (fields.ESTATE) {
+            binaryEstate = BinaryFields.readEstate(binary, fields.ESTATE);
+        }
+        if (fields.RANK) {
+            binaryRank = BinaryFields.readRank(binary, fields.RANK);
+        }
+        if (fields.UBER) {
+            binaryUber = BinaryFields.readUber(binary, fields.UBER);
+        }
+        if (fields.GAMEMODE) {
+            binaryGamemode = BinaryFields.readGamemode(binary, fields.GAMEMODE);
+        }
+        if (fields.DSA_SUPPLIES) {
+            binaryDsaSupplies = BinaryFields.readDsaSupplies(binary, fields.DSA_SUPPLIES);
+        }
+        
+        return {
+            fileName: this.fileName,
+            header: {
+                name: header.name || '(Unnamed)',
+                size: `${header.width}x${header.height}`,
+                gamemode: header.gamemode || 'UNKNOWN',
+                version: header.version || 'Unknown',
+                population: header.habitants || 0,
+                playtime: header.info?.playtime || 0,
+                saves: header['save counter'] || 0,
+                lastModified: header['last modified']
+            },
+            editable: {
+                headerMoney: header.money || 0,
+                headerRank: header['rank lvl'] || 0,
+                headerUber: header.uber === true,
+                binaryEstate: binaryEstate,
+                binaryRank: binaryRank,
+                binaryUber: binaryUber,
+                binaryGamemode: binaryGamemode,
+                binaryDsaSupplies: binaryDsaSupplies
+            },
+            fieldOffsets: {
+                estate: fields.ESTATE?.valueOffset,
+                rank: fields.RANK?.valueOffset,
+                uber: fields.UBER?.typeOffset,
+                gamemode: fields.GAMEMODE?.valueOffset,
+                dsaSupplies: fields.DSA_SUPPLIES?.valueOffset
+            },
+            hasChanges: this.hasChanges
+        };
+    },
+
+    /**
+     * Update money value
+     * @param {number} value - New money value
+     */
+    setMoney(value) {
+        if (!this.currentCity) return;
+        
+        // Update header
+        this.currentCity.header.money = value;
+        
+        // Update binary if field found
+        if (this.binaryFields.ESTATE) {
+            BinaryFields.writeEstate(
+                this.currentCity.binaryData, 
+                this.binaryFields.ESTATE, 
+                value
+            );
+        }
+        
+        this.hasChanges = true;
+    },
+
+    /**
+     * Update rank value
+     * @param {number} value - New rank value (0-5000)
+     */
+    setRank(value) {
+        if (!this.currentCity) return;
+        
+        value = Math.max(0, Math.min(5000, value));
+        
+        // Update header
+        this.currentCity.header['rank lvl'] = value;
+        
+        // Update binary if field found
+        if (this.binaryFields.RANK) {
+            BinaryFields.writeRank(
+                this.currentCity.binaryData, 
+                this.binaryFields.RANK, 
+                value
+            );
+        }
+        
+        this.hasChanges = true;
+    },
+
+    /**
+     * Toggle uber mode
+     */
+    toggleUber() {
+        if (!this.currentCity || !this.binaryFields.UBER) return;
+        
+        const currentValue = BinaryFields.readUber(
+            this.currentCity.binaryData, 
+            this.binaryFields.UBER
+        );
+        const newValue = !currentValue;
+        
+        // Update header
+        this.currentCity.header.uber = newValue;
+        
+        // Update binary
+        BinaryFields.writeUber(
+            this.currentCity.binaryData, 
+            this.binaryFields.UBER, 
+            newValue
+        );
+        
+        this.hasChanges = true;
+        return newValue;
+    },
+
+    /**
+     * Set DSA supplies value
+     * @param {number} value - New supplies value (0-32767)
+     */
+    setDsaSupplies(value) {
+        if (!this.currentCity || !this.binaryFields.DSA_SUPPLIES) return;
+        
+        value = Math.max(0, Math.min(32767, value));
+        
+        BinaryFields.writeDsaSupplies(
+            this.currentCity.binaryData, 
+            this.binaryFields.DSA_SUPPLIES, 
+            value
+        );
+        
+        this.hasChanges = true;
+    },
+
+    /**
+     * Save city to file
+     * @returns {Blob} File blob for download
+     */
+    save() {
+        if (!this.currentCity) return null;
+        
+        const fileData = FileParser.serialize(this.currentCity);
+        this.hasChanges = false;
+        
+        return new Blob([fileData], { type: 'application/octet-stream' });
+    },
+
+    /**
+     * Get filename for save
+     * @returns {string} Suggested filename
+     */
+    getSaveFilename() {
+        return this.fileName || 'city.city';
+    },
+
+    /**
+     * Reset to original data
+     */
+    reset() {
+        if (!this.currentCity) return;
+        
+        // Restore original values
+        this.currentCity.header = JSON.parse(JSON.stringify(this.currentCity.originalHeader));
+        this.currentCity.binaryData = new Uint8Array(this.currentCity.originalBinary);
+        
+        // Re-find fields
+        this.binaryFields = BinaryFields.findAllFields(this.currentCity.binaryData);
+        
+        this.hasChanges = false;
+    },
+
+    /**
+     * Clear current city
+     */
+    clear() {
+        this.currentCity = null;
+        this.fileName = null;
+        this.binaryFields = null;
+        this.hasChanges = false;
+    }
+};
+
+// Export for module systems
+
+
+// === display.js ===
+/**
+ * TheoTown Save Editor - UI Display Components
+ * Handles rendering city data to the DOM
+ */
+
+const Display = {
+    /**
+     * Show the editor panel with city data
+     * @param {Object} cityData - Data from CityManager.getDisplayData()
+     */
+    showEditor(cityData) {
+        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('editor').style.display = 'block';
+        
+        this.updateDisplay(cityData);
+    },
+
+    /**
+     * Update all display values
+     * @param {Object} cityData - Data from CityManager.getDisplayData()
+     */
+    updateDisplay(cityData) {
+        const h = cityData.header;
+        const e = cityData.editable;
+        const o = cityData.fieldOffsets;
+        
+        // File info
+        document.getElementById('cityName').textContent = h.name;
+        document.getElementById('citySize').textContent = h.size;
+        document.getElementById('cityVersion').textContent = h.version;
+        document.getElementById('cityGamemode').textContent = h.gamemode;
+        document.getElementById('cityPopulation').textContent = this.formatNumber(h.population);
+        document.getElementById('cityPlaytime').textContent = this.formatTime(h.playtime);
+        document.getElementById('citySaves').textContent = h.saves;
+        document.getElementById('cityLastModified').textContent = this.formatDate(h.lastModified);
+        
+        // Editable fields - Header
+        document.getElementById('headerMoney').value = Math.floor(e.headerMoney);
+        document.getElementById('headerRank').value = e.headerRank;
+        
+        // Editable fields - Binary
+        if (e.binaryEstate !== null) {
+            document.getElementById('binaryEstate').value = Math.floor(e.binaryEstate);
+            document.getElementById('binaryEstateRow').style.display = '';
+            document.getElementById('estateOffset').textContent = o.estate || '-';
+        } else {
+            document.getElementById('binaryEstateRow').style.display = 'none';
+        }
+        
+        if (e.binaryRank !== null) {
+            document.getElementById('binaryRank').value = e.binaryRank;
+            document.getElementById('binaryRankRow').style.display = '';
+            document.getElementById('rankOffset').textContent = o.rank || '-';
+        } else {
+            document.getElementById('binaryRankRow').style.display = 'none';
+        }
+        
+        // Uber mode
+        if (e.binaryUber !== null) {
+            document.getElementById('uberStatus').textContent = e.binaryUber ? 'ON' : 'OFF';
+            document.getElementById('uberStatus').className = e.binaryUber ? 'status-on' : 'status-off';
+            document.getElementById('toggleUberBtn').textContent = e.binaryUber ? 'Disable Uber' : 'Enable Uber';
+            document.getElementById('uberRow').style.display = '';
+            document.getElementById('uberOffset').textContent = o.uber || '-';
+        } else {
+            document.getElementById('uberRow').style.display = 'none';
+        }
+        
+        // Gamemode (read-only)
+        if (e.binaryGamemode !== null) {
+            document.getElementById('gamemodeValue').textContent = e.binaryGamemode;
+            document.getElementById('gamemodeRow').style.display = '';
+            document.getElementById('gamemodeOffset').textContent = o.gamemode || '-';
+        } else {
+            document.getElementById('gamemodeRow').style.display = 'none';
+        }
+        
+        // DSA Supplies
+        if (e.binaryDsaSupplies !== null) {
+            document.getElementById('dsaSupplies').value = e.binaryDsaSupplies;
+            document.getElementById('dsaRow').style.display = '';
+            document.getElementById('dsaOffset').textContent = o.dsaSupplies || '-';
+        } else {
+            document.getElementById('dsaRow').style.display = 'none';
+        }
+        
+        // Changes indicator
+        this.updateChangesIndicator(cityData.hasChanges);
+    },
+
+    /**
+     * Update the unsaved changes indicator
+     * @param {boolean} hasChanges - Whether there are unsaved changes
+     */
+    updateChangesIndicator(hasChanges) {
+        const indicator = document.getElementById('changesIndicator');
+        if (indicator) {
+            indicator.style.display = hasChanges ? 'block' : 'none';
+        }
+    },
+
+    /**
+     * Show/hide loading state
+     * @param {boolean} loading - Whether loading is in progress
+     */
+    setLoading(loading) {
+        const loader = document.getElementById('loader');
+        if (loader) {
+            loader.style.display = loading ? 'block' : 'none';
+        }
+    },
+
+    /**
+     * Show error message
+     * @param {string} message - Error message to display
+     */
+    showError(message) {
+        const errorEl = document.getElementById('error');
+        if (errorEl) {
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        } else {
+            alert('Error: ' + message);
+        }
+    },
+
+    /**
+     * Hide error message
+     */
+    hideError() {
+        const errorEl = document.getElementById('error');
+        if (errorEl) {
+            errorEl.style.display = 'none';
+        }
+    },
+
+    /**
+     * Show success message
+     * @param {string} message - Success message to display
+     */
+    showSuccess(message) {
+        const successEl = document.getElementById('success');
+        if (successEl) {
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 3000);
+        }
+    },
+
+    /**
+     * Reset to initial state
+     */
+    reset() {
+        document.getElementById('fileInfo').style.display = 'block';
+        document.getElementById('editor').style.display = 'none';
+        this.hideError();
+    },
+
+    // Formatting helpers
+    formatNumber(num) {
+        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+        return num.toString();
+    },
+
+    formatTime(seconds) {
+        if (!seconds) return '0:00';
+        const hours = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        if (hours > 0) {
+            return `${hours}h ${mins}m`;
+        }
+        return `${mins}m`;
+    },
+
+    formatDate(timestamp) {
+        if (!timestamp) return 'Unknown';
+        return new Date(timestamp).toLocaleString();
+    }
+};
+
+// Export for module systems
+
+
+// === actions.js ===
+/**
+ * TheoTown Save Editor - UI Actions
+ * Handles user interactions and event binding
+ */
+
+const Actions = {
+    /**
+     * Initialize all event handlers
+     */
+    init() {
+        // File input
+        document.getElementById('fileInput').addEventListener('change', this.handleFileSelect.bind(this));
+        
+        // Drag and drop
+        const dropZone = document.getElementById('dropZone');
+        if (dropZone) {
+            dropZone.addEventListener('dragover', this.handleDragOver.bind(this));
+            dropZone.addEventListener('dragleave', this.handleDragLeave.bind(this));
+            dropZone.addEventListener('drop', this.handleDrop.bind(this));
+        }
+        
+        // Editor buttons
+        document.getElementById('saveBtn')?.addEventListener('click', this.handleSave.bind(this));
+        document.getElementById('resetBtn')?.addEventListener('click', this.handleReset.bind(this));
+        document.getElementById('closeBtn')?.addEventListener('click', this.handleClose.bind(this));
+        document.getElementById('toggleUberBtn')?.addEventListener('click', this.handleToggleUber.bind(this));
+        
+        // Input changes
+        document.getElementById('headerMoney')?.addEventListener('change', this.handleMoneyChange.bind(this));
+        document.getElementById('binaryEstate')?.addEventListener('change', this.handleMoneyChange.bind(this));
+        document.getElementById('headerRank')?.addEventListener('change', this.handleRankChange.bind(this));
+        document.getElementById('binaryRank')?.addEventListener('change', this.handleRankChange.bind(this));
+        document.getElementById('dsaSupplies')?.addEventListener('change', this.handleDsaChange.bind(this));
+        
+        // Sync inputs
+        document.getElementById('headerMoney')?.addEventListener('input', this.syncMoneyInputs.bind(this));
+        document.getElementById('binaryEstate')?.addEventListener('input', this.syncMoneyInputs.bind(this));
+        document.getElementById('headerRank')?.addEventListener('input', this.syncRankInputs.bind(this));
+        document.getElementById('binaryRank')?.addEventListener('input', this.syncRankInputs.bind(this));
+    },
+
+    /**
+     * Handle file selection
+     * @param {Event} e - Change event
+     */
+    async handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        await this.loadFile(file);
+    },
+
+    /**
+     * Handle drag over
+     * @param {DragEvent} e - Drag event
+     */
+    handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add('drag-over');
+    },
+
+    /**
+     * Handle drag leave
+     * @param {DragEvent} e - Drag event
+     */
+    handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    },
+
+    /**
+     * Handle file drop
+     * @param {DragEvent} e - Drop event
+     */
+    async handleDrop(e) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        
+        const file = e.dataTransfer.files[0];
+        if (file) {
+            await this.loadFile(file);
+        }
+    },
+
+    /**
+     * Load a city file
+     * @param {File} file - File to load
+     */
+    async loadFile(file) {
+        if (!file.name.endsWith('.city')) {
+            Display.showError('Please select a .city file');
+            return;
+        }
+        
+        Display.setLoading(true);
+        Display.hideError();
+        
+        try {
+            const cityData = await CityManager.load(file);
+            Display.showEditor(cityData);
+        } catch (err) {
+            Display.showError('Error loading file: ' + err.message);
+            console.error(err);
+        } finally {
+            Display.setLoading(false);
+        }
+    },
+
+    /**
+     * Handle money input change
+     * @param {Event} e - Change event
+     */
+    handleMoneyChange(e) {
+        const value = parseInt(e.target.value) || 0;
+        CityManager.setMoney(value);
+        this.refreshDisplay();
+    },
+
+    /**
+     * Handle rank input change
+     * @param {Event} e - Change event
+     */
+    handleRankChange(e) {
+        const value = parseInt(e.target.value) || 0;
+        CityManager.setRank(value);
+        this.refreshDisplay();
+    },
+
+    /**
+     * Handle DSA supplies change
+     * @param {Event} e - Change event
+     */
+    handleDsaChange(e) {
+        const value = parseInt(e.target.value) || 0;
+        CityManager.setDsaSupplies(value);
+        this.refreshDisplay();
+    },
+
+    /**
+     * Handle uber toggle
+     */
+    handleToggleUber() {
+        const newValue = CityManager.toggleUber();
+        if (newValue !== undefined) {
+            Display.showSuccess(`Uber mode ${newValue ? 'enabled' : 'disabled'}`);
+            this.refreshDisplay();
+        }
+    },
+
+    /**
+     * Sync money inputs (header and binary)
+     * @param {Event} e - Input event
+     */
+    syncMoneyInputs(e) {
+        const value = e.target.value;
+        const isHeader = e.target.id === 'headerMoney';
+        const otherInput = document.getElementById(isHeader ? 'binaryEstate' : 'headerMoney');
+        if (otherInput) {
+            otherInput.value = value;
+        }
+    },
+
+    /**
+     * Sync rank inputs (header and binary)
+     * @param {Event} e - Input event
+     */
+    syncRankInputs(e) {
+        const value = e.target.value;
+        const isHeader = e.target.id === 'headerRank';
+        const otherInput = document.getElementById(isHeader ? 'binaryRank' : 'headerRank');
+        if (otherInput) {
+            otherInput.value = value;
+        }
+    },
+
+    /**
+     * Handle save button
+     */
+    handleSave() {
+        const blob = CityManager.save();
+        if (!blob) return;
+        
+        const filename = CityManager.getSaveFilename();
+        
+        // Create download link
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        Display.showSuccess('File saved: ' + filename);
+        this.refreshDisplay();
+    },
+
+    /**
+     * Handle reset button
+     */
+    handleReset() {
+        if (confirm('Reset all changes to original values?')) {
+            CityManager.reset();
+            this.refreshDisplay();
+            Display.showSuccess('Changes reset');
+        }
+    },
+
+    /**
+     * Handle close button
+     */
+    handleClose() {
+        if (CityManager.hasChanges) {
+            if (!confirm('You have unsaved changes. Close anyway?')) {
+                return;
+            }
+        }
+        CityManager.clear();
+        Display.reset();
+        document.getElementById('fileInput').value = '';
+    },
+
+    /**
+     * Refresh display with current data
+     */
+    refreshDisplay() {
+        const cityData = CityManager.getDisplayData();
+        if (cityData) {
+            Display.updateDisplay(cityData);
+        }
+    }
+};
+
+// Export for module systems
+
+
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    Actions.init();
+});
+    </script>
+</body>
+</html>

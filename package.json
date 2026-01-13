@@ -1,0 +1,23 @@
+{
+  "name": "theotown-save-editor",
+  "version": "3.0.0",
+  "description": "Web-based editor for TheoTown .city save files",
+  "main": "build.js",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "python3 -m http.server 8080 -d src",
+    "serve": "python3 -m http.server 8080 -d dist"
+  },
+  "keywords": [
+    "theotown",
+    "save-editor",
+    "city-builder",
+    "game-modding"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": ""
+  }
+}
