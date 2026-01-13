@@ -249,6 +249,10 @@ if (!fs.existsSync(DIST_DIR)) {
 const outputPath = path.join(DIST_DIR, 'theotown_web_viewer.html');
 fs.writeFileSync(outputPath, bundledHtml);
 
+// Also write as index.html for GitHub Pages
+const indexPath = path.join(DIST_DIR, 'index.html');
+fs.writeFileSync(indexPath, bundledHtml);
+
 const stats = fs.statSync(outputPath);
 console.log(`\n✅ Build complete!`);
 console.log(`   Output: ${outputPath}`);
