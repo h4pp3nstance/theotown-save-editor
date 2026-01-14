@@ -1,20 +1,25 @@
 # TheoTown Save Editor
 
-🏙️ Web-based editor for TheoTown .city save files
+Web-based editor for TheoTown .city save files
 
 ## Features
 
-- **View city info**: Name, size, population, playtime, etc.
+- **View city info**: Name, size, playtime, and more
+- **Edit city name**: Change your city's name directly in the binary
 - **Edit money**: Modify estate/money values
-- **Edit rank**: Change rank level (0-5000)
+- **Edit rank**: Set rank level (0-64 max supported)
+- **Change difficulty**: Switch between Sandbox, Easy, Normal, Hard, and Expert modes
 - **Toggle Uber Mode**: Enable/disable uber mode
-- **Edit DSA Supplies**: Modify `_dsarocketprocentage` for DSA integration
+- **Edit DSA Supplies**: Modify rocket percentage for DSA integration
 - **Moon file support**: Works with moon map files too
+- **Undo/Redo**: Full history support for all changes
+- **Auto-backup**: Original file preserved before modifications
+- **Validation**: Built-in constraints prevent invalid values
 
 ## Usage
 
 ### Online
-Visit the GitHub Pages deployment (after setup).
+Visit the GitHub Pages deployment: https://ibaysander.github.io/theotown-save-editor/
 
 ### Local Development
 ```bash

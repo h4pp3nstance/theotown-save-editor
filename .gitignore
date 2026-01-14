@@ -13,3 +13,4 @@ Thumbs.db
 
 # Build artifacts (optional - uncomment if you don't want to commit dist/)
 # dist/
+.claude/

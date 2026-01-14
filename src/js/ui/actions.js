@@ -24,19 +24,44 @@ const Actions = {
         document.getElementById('resetBtn')?.addEventListener('click', this.handleReset.bind(this));
         document.getElementById('closeBtn')?.addEventListener('click', this.handleClose.bind(this));
         document.getElementById('toggleUberBtn')?.addEventListener('click', this.handleToggleUber.bind(this));
+        document.getElementById('undoBtn')?.addEventListener('click', this.handleUndo.bind(this));
+        document.getElementById('redoBtn')?.addEventListener('click', this.handleRedo.bind(this));
+        document.getElementById('downloadOriginalBtn')?.addEventListener('click', this.handleDownloadOriginal.bind(this));
         
         // Input changes
-        document.getElementById('headerMoney')?.addEventListener('change', this.handleMoneyChange.bind(this));
         document.getElementById('binaryEstate')?.addEventListener('change', this.handleMoneyChange.bind(this));
-        document.getElementById('headerRank')?.addEventListener('change', this.handleRankChange.bind(this));
         document.getElementById('binaryRank')?.addEventListener('change', this.handleRankChange.bind(this));
         document.getElementById('dsaSupplies')?.addEventListener('change', this.handleDsaChange.bind(this));
+        document.getElementById('gamemodeSelect')?.addEventListener('change', this.handleGamemodeChange.bind(this));
+        document.getElementById('binaryName')?.addEventListener('change', this.handleNameChange.bind(this));
         
-        // Sync inputs
-        document.getElementById('headerMoney')?.addEventListener('input', this.syncMoneyInputs.bind(this));
-        document.getElementById('binaryEstate')?.addEventListener('input', this.syncMoneyInputs.bind(this));
-        document.getElementById('headerRank')?.addEventListener('input', this.syncRankInputs.bind(this));
-        document.getElementById('binaryRank')?.addEventListener('input', this.syncRankInputs.bind(this));
+        // Keyboard shortcuts
+        document.addEventListener('keydown', this.handleKeyDown.bind(this));
+    },
+
+    /**
+     * Handle keyboard shortcuts
+     * @param {KeyboardEvent} e - Keyboard event
+     */
+    handleKeyDown(e) {
+        // Only handle when editor is visible
+        if (document.getElementById('editor').style.display === 'none') return;
+        
+        // Ctrl+Z = Undo
+        if (e.ctrlKey && e.key === 'z' && !e.shiftKey) {
+            e.preventDefault();
+            this.handleUndo();
+        }
+        // Ctrl+Y or Ctrl+Shift+Z = Redo
+        if ((e.ctrlKey && e.key === 'y') || (e.ctrlKey && e.shiftKey && e.key === 'z')) {
+            e.preventDefault();
+            this.handleRedo();
+        }
+        // Ctrl+S = Save
+        if (e.ctrlKey && e.key === 's') {
+            e.preventDefault();
+            this.handleSave();
+        }
     },
 
     /**
@@ -136,6 +161,41 @@ const Actions = {
     },
 
     /**
+     * Handle gamemode change
+     * @param {Event} e - Change event
+     */
+    handleGamemodeChange(e) {
+        const value = e.target.value;
+        const success = CityManager.setGamemode(value);
+        if (success) {
+            Display.showSuccess(`Difficulty changed to ${value}`);
+        } else {
+            Display.showError('Failed to change difficulty');
+        }
+        this.refreshDisplay();
+    },
+
+    /**
+     * Handle city name change
+     * @param {Event} e - Change event
+     */
+    handleNameChange(e) {
+        const value = e.target.value.trim();
+        if (!value) {
+            Display.showError('City name cannot be empty');
+            this.refreshDisplay();
+            return;
+        }
+        const success = CityManager.setName(value);
+        if (success) {
+            Display.showSuccess(`City renamed to "${value}"`);
+        } else {
+            Display.showError('Failed to change city name');
+        }
+        this.refreshDisplay();
+    },
+
+    /**
      * Handle uber toggle
      */
     handleToggleUber() {
@@ -147,35 +207,64 @@ const Actions = {
     },
 
     /**
-     * Sync money inputs (header and binary)
-     * @param {Event} e - Input event
+     * Handle undo
      */
-    syncMoneyInputs(e) {
-        const value = e.target.value;
-        const isHeader = e.target.id === 'headerMoney';
-        const otherInput = document.getElementById(isHeader ? 'binaryEstate' : 'headerMoney');
-        if (otherInput) {
-            otherInput.value = value;
+    handleUndo() {
+        if (CityManager.undo()) {
+            Display.showSuccess('Undo');
+            this.refreshDisplay();
         }
     },
 
     /**
-     * Sync rank inputs (header and binary)
-     * @param {Event} e - Input event
+     * Handle redo
      */
-    syncRankInputs(e) {
-        const value = e.target.value;
-        const isHeader = e.target.id === 'headerRank';
-        const otherInput = document.getElementById(isHeader ? 'binaryRank' : 'headerRank');
-        if (otherInput) {
-            otherInput.value = value;
+    handleRedo() {
+        if (CityManager.redo()) {
+            Display.showSuccess('Redo');
+            this.refreshDisplay();
         }
+    },
+
+    /**
+     * Handle download original
+     */
+    async handleDownloadOriginal() {
+        const blob = await CityManager.getOriginalBlob();
+        if (!blob) {
+            Display.showError('No backup available');
+            return;
+        }
+        
+        const filename = 'original_' + CityManager.getSaveFilename();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        Display.showSuccess('Original file downloaded: ' + filename);
     },
 
     /**
      * Handle save button
      */
     handleSave() {
+        // Validate before saving
+        const validation = CityManager.validate();
+        if (!validation.valid) {
+            Display.showError('Validation failed: ' + validation.errors.join(', '));
+            return;
+        }
+        if (validation.warnings.length > 0) {
+            if (!confirm('Warnings: ' + validation.warnings.join('\\n') + '\\n\\nSave anyway?')) {
+                return;
+            }
+        }
+        
         const blob = CityManager.save();
         if (!blob) return;
         

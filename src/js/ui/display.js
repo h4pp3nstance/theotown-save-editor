@@ -9,7 +9,7 @@ const Display = {
      * @param {Object} cityData - Data from CityManager.getDisplayData()
      */
     showEditor(cityData) {
-        document.getElementById('fileInfo').style.display = 'none';
+        document.getElementById('dropZone').style.display = 'none';
         document.getElementById('editor').style.display = 'block';
         
         this.updateDisplay(cityData);
@@ -34,9 +34,14 @@ const Display = {
         document.getElementById('citySaves').textContent = h.saves;
         document.getElementById('cityLastModified').textContent = this.formatDate(h.lastModified);
         
-        // Editable fields - Header
-        document.getElementById('headerMoney').value = Math.floor(e.headerMoney);
-        document.getElementById('headerRank').value = e.headerRank;
+        // City Name (editable)
+        if (e.binaryName !== null) {
+            document.getElementById('binaryName').value = e.binaryName;
+            document.getElementById('cityNameRow').style.display = '';
+            document.getElementById('nameOffset').textContent = o.name || '-';
+        } else {
+            document.getElementById('cityNameRow').style.display = 'none';
+        }
         
         // Editable fields - Binary
         if (e.binaryEstate !== null) {
@@ -66,9 +71,22 @@ const Display = {
             document.getElementById('uberRow').style.display = 'none';
         }
         
-        // Gamemode (read-only)
+        // Gamemode (editable dropdown)
         if (e.binaryGamemode !== null) {
-            document.getElementById('gamemodeValue').textContent = e.binaryGamemode;
+            const gamemodeSelect = document.getElementById('gamemodeSelect');
+            if (gamemodeSelect && cityData.gamemodes) {
+                // Clear existing options
+                gamemodeSelect.innerHTML = '';
+                cityData.gamemodes.forEach(mode => {
+                    const option = document.createElement('option');
+                    option.value = mode;
+                    option.textContent = mode;
+                    if (mode === e.binaryGamemode) {
+                        option.selected = true;
+                    }
+                    gamemodeSelect.appendChild(option);
+                });
+            }
             document.getElementById('gamemodeRow').style.display = '';
             document.getElementById('gamemodeOffset').textContent = o.gamemode || '-';
         } else {
@@ -82,6 +100,36 @@ const Display = {
             document.getElementById('dsaOffset').textContent = o.dsaSupplies || '-';
         } else {
             document.getElementById('dsaRow').style.display = 'none';
+        }
+        
+        // Undo/Redo buttons
+        const undoBtn = document.getElementById('undoBtn');
+        const redoBtn = document.getElementById('redoBtn');
+        if (undoBtn) {
+            undoBtn.disabled = !cityData.canUndo;
+        }
+        if (redoBtn) {
+            redoBtn.disabled = !cityData.canRedo;
+        }
+        
+        // Backup status
+        const backupStatus = document.getElementById('backupStatus');
+        const downloadOriginalBtn = document.getElementById('downloadOriginalBtn');
+        if (cityData.hasBackup) {
+            if (backupStatus) {
+                backupStatus.innerHTML = '<span class="backup-icon">✓</span> Original file backed up';
+                backupStatus.className = 'backup-status active';
+            }
+            if (downloadOriginalBtn) {
+                downloadOriginalBtn.style.display = '';
+            }
+        } else {
+            if (backupStatus) {
+                backupStatus.className = 'backup-status';
+            }
+            if (downloadOriginalBtn) {
+                downloadOriginalBtn.style.display = 'none';
+            }
         }
         
         // Changes indicator
@@ -153,7 +201,7 @@ const Display = {
      * Reset to initial state
      */
     reset() {
-        document.getElementById('fileInfo').style.display = 'block';
+        document.getElementById('dropZone').style.display = 'block';
         document.getElementById('editor').style.display = 'none';
         this.hideError();
     },

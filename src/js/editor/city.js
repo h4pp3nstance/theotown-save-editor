@@ -9,6 +9,7 @@ const CityManager = {
     fileName: null,
     binaryFields: null,
     hasChanges: false,
+    hasBackup: false,
 
     /**
      * Load a city file
@@ -23,6 +24,21 @@ const CityManager = {
         
         // Find all binary fields
         this.binaryFields = BinaryFields.findAllFields(this.currentCity.binaryData);
+        
+        // Store backup of original file
+        if (typeof BackupManager !== 'undefined') {
+            await BackupManager.store(
+                file.name, 
+                this.currentCity.originalBinary,
+                this.currentCity.originalHeader
+            );
+            this.hasBackup = true;
+        }
+        
+        // Clear history for new file
+        if (typeof HistoryManager !== 'undefined') {
+            HistoryManager.clear();
+        }
         
         return this.getDisplayData();
     },
@@ -44,6 +60,7 @@ const CityManager = {
         let binaryUber = null;
         let binaryGamemode = null;
         let binaryDsaSupplies = null;
+        let binaryName = null;
         
         if (fields.ESTATE) {
             binaryEstate = BinaryFields.readEstate(binary, fields.ESTATE);
@@ -59,6 +76,9 @@ const CityManager = {
         }
         if (fields.DSA_SUPPLIES) {
             binaryDsaSupplies = BinaryFields.readDsaSupplies(binary, fields.DSA_SUPPLIES);
+        }
+        if (fields.NAME) {
+            binaryName = BinaryFields.readName(binary, fields.NAME);
         }
         
         return {
@@ -81,15 +101,22 @@ const CityManager = {
                 binaryRank: binaryRank,
                 binaryUber: binaryUber,
                 binaryGamemode: binaryGamemode,
-                binaryDsaSupplies: binaryDsaSupplies
+                binaryDsaSupplies: binaryDsaSupplies,
+                binaryName: binaryName
             },
             fieldOffsets: {
                 estate: fields.ESTATE?.valueOffset,
                 rank: fields.RANK?.valueOffset,
                 uber: fields.UBER?.typeOffset,
                 gamemode: fields.GAMEMODE?.valueOffset,
-                dsaSupplies: fields.DSA_SUPPLIES?.valueOffset
+                dsaSupplies: fields.DSA_SUPPLIES?.valueOffset,
+                name: fields.NAME?.valueOffset
             },
+            gamemodes: BinaryFields.GAMEMODES,
+            hasBackup: this.hasBackup,
+            historyCount: typeof HistoryManager !== 'undefined' ? HistoryManager.getUndoCount() : 0,
+            canUndo: typeof HistoryManager !== 'undefined' ? HistoryManager.canUndo() : false,
+            canRedo: typeof HistoryManager !== 'undefined' ? HistoryManager.canRedo() : false,
             hasChanges: this.hasChanges
         };
     },
@@ -118,12 +145,12 @@ const CityManager = {
 
     /**
      * Update rank value
-     * @param {number} value - New rank value (0-5000)
+     * @param {number} value - New rank value (0-64)
      */
     setRank(value) {
         if (!this.currentCity) return;
         
-        value = Math.max(0, Math.min(5000, value));
+        value = Math.max(0, Math.min(BinaryFields.MAX_RANK, value));
         
         // Update header
         this.currentCity.header['rank lvl'] = value;
@@ -138,6 +165,74 @@ const CityManager = {
         }
         
         this.hasChanges = true;
+    },
+
+    /**
+     * Update gamemode (difficulty)
+     * @param {string} value - New gamemode (EASY/NORMAL/HARD/SANDBOX)
+     * @returns {boolean} Success status
+     */
+    setGamemode(value) {
+        if (!this.currentCity) return false;
+        
+        // Update header
+        this.currentCity.header.gamemode = value;
+        
+        // Update binary if field found
+        if (this.binaryFields.GAMEMODE) {
+            const newBinaryData = BinaryFields.writeGamemode(
+                this.currentCity.binaryData, 
+                this.binaryFields.GAMEMODE, 
+                value
+            );
+            if (newBinaryData) {
+                this.currentCity.binaryData = newBinaryData;
+                // Re-find all fields since offsets may have changed
+                this.binaryFields = BinaryFields.findAllFields(this.currentCity.binaryData);
+            } else {
+                console.warn('Failed to write gamemode to binary');
+                return false;
+            }
+        }
+        
+        this.hasChanges = true;
+        return true;
+    },
+
+    /**
+     * Update city name
+     * @param {string} name - New city name
+     * @returns {boolean} Success status
+     */
+    setName(name) {
+        if (!this.currentCity) return false;
+        
+        // Sanitize name
+        name = name.trim();
+        if (!name) return false;
+        
+        // Update header
+        this.currentCity.header.name = name;
+        
+        // Update binary if field found
+        if (this.binaryFields.NAME) {
+            const newBinaryData = BinaryFields.writeName(
+                this.currentCity.binaryData, 
+                this.binaryFields.NAME, 
+                name
+            );
+            if (newBinaryData) {
+                this.currentCity.binaryData = newBinaryData;
+                // Re-find all fields since offsets may have changed
+                this.binaryFields = BinaryFields.findAllFields(this.currentCity.binaryData);
+            } else {
+                console.warn('Failed to write name to binary');
+                return false;
+            }
+        }
+        
+        this.hasChanges = true;
+        return true;
     },
 
     /**
@@ -162,6 +257,12 @@ const CityManager = {
             newValue
         );
         
+        // Re-find the UBER field since type byte changed
+        this.binaryFields.UBER = BinaryFields.findField(
+            this.currentCity.binaryData, 
+            BinaryFields.FIELD_NAMES.UBER
+        );
+        
         this.hasChanges = true;
         return newValue;
     },
@@ -173,7 +274,23 @@ const CityManager = {
     setDsaSupplies(value) {
         if (!this.currentCity || !this.binaryFields.DSA_SUPPLIES) return;
         
+        const oldValue = BinaryFields.readDsaSupplies(
+            this.currentCity.binaryData, 
+            this.binaryFields.DSA_SUPPLIES
+        );
+        
         value = Math.max(0, Math.min(32767, value));
+        
+        // Record history
+        if (typeof HistoryManager !== 'undefined') {
+            HistoryManager.record({
+                type: 'setDsaSupplies',
+                field: 'dsaSupplies',
+                oldValue: oldValue,
+                newValue: value,
+                description: HistoryManager.createDescription('dsaSupplies', oldValue, value)
+            });
+        }
         
         BinaryFields.writeDsaSupplies(
             this.currentCity.binaryData, 
@@ -182,6 +299,109 @@ const CityManager = {
         );
         
         this.hasChanges = true;
+    },
+
+    /**
+     * Validate city data before saving
+     * @returns {Object} Validation result { valid, errors, warnings }
+     */
+    validate() {
+        if (!this.currentCity) {
+            return { valid: false, errors: ['No city loaded'], warnings: [] };
+        }
+        
+        if (typeof Validator === 'undefined') {
+            return { valid: true, errors: [], warnings: [] };
+        }
+        
+        return Validator.validate(
+            this.currentCity,
+            this.binaryFields,
+            this.getDisplayData()
+        );
+    },
+
+    /**
+     * Undo the last action
+     * @returns {boolean} Whether undo was performed
+     */
+    undo() {
+        if (typeof HistoryManager === 'undefined' || !HistoryManager.canUndo()) {
+            return false;
+        }
+        
+        const action = HistoryManager.popUndo();
+        if (!action) return false;
+        
+        HistoryManager.startApplying();
+        this.applyValue(action.field, action.oldValue);
+        HistoryManager.stopApplying();
+        
+        return true;
+    },
+
+    /**
+     * Redo the last undone action
+     * @returns {boolean} Whether redo was performed
+     */
+    redo() {
+        if (typeof HistoryManager === 'undefined' || !HistoryManager.canRedo()) {
+            return false;
+        }
+        
+        const action = HistoryManager.popRedo();
+        if (!action) return false;
+        
+        HistoryManager.startApplying();
+        this.applyValue(action.field, action.newValue);
+        HistoryManager.stopApplying();
+        
+        return true;
+    },
+
+    /**
+     * Apply a value to a field (used by undo/redo)
+     * @param {string} field - Field name
+     * @param {*} value - Value to apply
+     */
+    applyValue(field, value) {
+        switch (field) {
+            case 'money':
+            case 'estate':
+                this.setMoney(value);
+                break;
+            case 'rank':
+                this.setRank(value);
+                break;
+            case 'name':
+                this.setName(value);
+                break;
+            case 'gamemode':
+                this.setGamemode(value);
+                break;
+            case 'uber':
+                // Uber is a toggle, need special handling
+                const currentUber = BinaryFields.readUber(
+                    this.currentCity.binaryData, 
+                    this.binaryFields.UBER
+                );
+                if (currentUber !== value) {
+                    this.toggleUber();
+                }
+                break;
+            case 'dsaSupplies':
+                this.setDsaSupplies(value);
+                break;
+        }
+    },
+
+    /**
+     * Get original file as blob for download
+     * @returns {Promise<Blob|null>} Original file blob
+     */
+    async getOriginalBlob() {
+        if (typeof BackupManager === 'undefined') return null;
+        return await BackupManager.getAsBlob(this.fileName);
     },
 
     /**
