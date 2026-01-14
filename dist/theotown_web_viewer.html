@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TheoTown Save Editor</title>
-    <!-- pako for gzip compression -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
     <style>
 /**
  * TheoTown Save Editor - Minimalist UI
@@ -662,155 +660,172 @@ footer p + p {
 }
 
     </style>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏙️</text></svg>">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
 </head>
 <body>
     <div class="container">
-        <h1>🏙️ TheoTown Save Editor</h1>
-        <p class="version">v3.0 - Built 2026-01-14</p>
+        <header>
+            <h1>TheoTown Save Editor</h1>
+            <p class="version">v3.0.1</p>
+        </header>
         
         <div id="error"></div>
         <div id="success"></div>
-        <div id="changesIndicator">⚠️ You have unsaved changes</div>
+        <div id="changesIndicator">Unsaved changes</div>
         
         <div id="loader">
             <div class="spinner"></div>
-            <p>Loading city data...</p>
+            <p>Loading...</p>
         </div>
         
-        <!-- File Selection -->
-        <div id="fileInfo" id="dropZone">
-            <h2>📂 Select a City File</h2>
-            <p>Choose a .city file from your TheoTown save folder<br>
-            <small>Supports regular cities and moon files</small></p>
+        <div id="dropZone">
+            <h2>Select City File</h2>
+            <p>Drop a .city file here or click to browse</p>
             <label class="file-label">
                 <input type="file" id="fileInput" accept=".city">
-                Browse Files
+                Choose File
             </label>
-            <p style="margin-top: 20px; font-size: 0.9em;">
-                Or drag and drop a .city file here
-            </p>
         </div>
         
-        <!-- Editor Panel -->
         <div id="editor">
-            <!-- City Info -->
-            <div class="panel">
-                <h2>📋 City Information</h2>
+            <section class="panel">
+                <h2>City Info</h2>
                 <div class="info-grid">
                     <div class="info-item">
-                        <label>City Name</label>
-                        <span id="cityName">-</span>
+                        <label>Name</label>
+                        <span id="cityName">—</span>
                     </div>
                     <div class="info-item">
                         <label>Size</label>
-                        <span id="citySize">-</span>
+                        <span id="citySize">—</span>
                     </div>
                     <div class="info-item">
                         <label>Version</label>
-                        <span id="cityVersion">-</span>
+                        <span id="cityVersion">—</span>
                     </div>
                     <div class="info-item">
-                        <label>Game Mode</label>
-                        <span id="cityGamemode">-</span>
+                        <label>Difficulty</label>
+                        <span id="cityGamemode">—</span>
                     </div>
                     <div class="info-item">
                         <label>Population</label>
-                        <span id="cityPopulation">-</span>
+                        <span id="cityPopulation">—</span>
                     </div>
                     <div class="info-item">
                         <label>Playtime</label>
-                        <span id="cityPlaytime">-</span>
+                        <span id="cityPlaytime">—</span>
                     </div>
                     <div class="info-item">
-                        <label>Save Count</label>
-                        <span id="citySaves">-</span>
+                        <label>Saves</label>
+                        <span id="citySaves">—</span>
                     </div>
                     <div class="info-item">
-                        <label>Last Modified</label>
-                        <span id="cityLastModified">-</span>
+                        <label>Modified</label>
+                        <span id="cityLastModified">—</span>
                     </div>
                 </div>
-            </div>
+            </section>
             
-            <!-- Header Editor -->
-            <div class="panel">
-                <h2>📝 Header Values</h2>
+            <section class="panel">
+                <h2>Edit Values</h2>
+                <p class="panel-note">Changes are written directly to binary data</p>
                 <table class="edit-table">
-                    <tr>
-                        <th>Field</th>
-                        <th>Value</th>
-                        <th>Note</th>
-                    </tr>
-                    <tr>
-                        <td>Money</td>
-                        <td><input type="number" id="headerMoney" min="0"></td>
-                        <td>JSON header value</td>
-                    </tr>
-                    <tr>
-                        <td>Rank Level</td>
-                        <td><input type="number" id="headerRank" min="0" max="5000"></td>
-                        <td>0-5000</td>
-                    </tr>
+                    <thead>
+                        <tr>
+                            <th>Field</th>
+                            <th>Value</th>
+                            <th>Offset</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr id="cityNameRow">
+                            <td>Name</td>
+                            <td><input type="text" id="binaryName" maxlength="255"></td>
+                            <td class="offset" id="nameOffset">—</td>
+                            <td>
+                                <span class="tooltip">?
+                                    <span class="tooltip-text">Binary: name</span>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr id="binaryEstateRow">
+                            <td>Money</td>
+                            <td><input type="number" id="binaryEstate" min="0" max="2147483647"></td>
+                            <td class="offset" id="estateOffset">—</td>
+                            <td>
+                                <span class="tooltip">?
+                                    <span class="tooltip-text">Binary: estate (int32)</span>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr id="binaryRankRow">
+                            <td>Rank</td>
+                            <td><input type="number" id="binaryRank" min="0" max="64"></td>
+                            <td class="offset" id="rankOffset">—</td>
+                            <td>
+                                <span class="tooltip">?
+                                    <span class="tooltip-text">Binary: rank lvl (0-64)</span>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr id="gamemodeRow">
+                            <td>Difficulty</td>
+                            <td>
+                                <select id="gamemodeSelect" class="gamemode-select">
+                                    <option value="EASY">EASY</option>
+                                    <option value="NORMAL">NORMAL</option>
+                                    <option value="HARD">HARD</option>
+                                    <option value="SANDBOX">SANDBOX</option>
+                                </select>
+                            </td>
+                            <td class="offset" id="gamemodeOffset">—</td>
+                            <td>
+                                <span class="tooltip">?
+                                    <span class="tooltip-text">Binary: gamemode</span>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr id="uberRow">
+                            <td>Uber Mode</td>
+                            <td><span id="uberStatus" class="status-off">OFF</span></td>
+                            <td class="offset" id="uberOffset">—</td>
+                            <td><button class="btn btn-small btn-secondary" id="toggleUberBtn">Toggle</button></td>
+                        </tr>
+                        <tr id="dsaRow">
+                            <td>DSA Supplies</td>
+                            <td><input type="number" id="dsaSupplies" min="0" max="32767"></td>
+                            <td class="offset" id="dsaOffset">—</td>
+                            <td>
+                                <span class="tooltip">?
+                                    <span class="tooltip-text">Binary: dsarocketprocentage</span>
+                                </span>
+                            </td>
+                        </tr>
+                    </tbody>
                 </table>
-            </div>
+            </section>
             
-            <!-- Binary Editor -->
-            <div class="panel">
-                <h2>🔧 Binary Values</h2>
-                <table class="edit-table">
-                    <tr>
-                        <th>Field</th>
-                        <th>Value</th>
-                        <th>Offset</th>
-                        <th>Action</th>
-                    </tr>
-                    <tr id="binaryEstateRow">
-                        <td>Estate (Money)</td>
-                        <td><input type="number" id="binaryEstate" min="0"></td>
-                        <td class="offset" id="estateOffset">-</td>
-                        <td></td>
-                    </tr>
-                    <tr id="binaryRankRow">
-                        <td>Rank Level</td>
-                        <td><input type="number" id="binaryRank" min="0" max="5000"></td>
-                        <td class="offset" id="rankOffset">-</td>
-                        <td></td>
-                    </tr>
-                    <tr id="uberRow">
-                        <td>Uber Mode</td>
-                        <td><span id="uberStatus" class="status-off">OFF</span></td>
-                        <td class="offset" id="uberOffset">-</td>
-                        <td><button class="btn btn-small btn-warning" id="toggleUberBtn">Toggle</button></td>
-                    </tr>
-                    <tr id="gamemodeRow">
-                        <td>Gamemode</td>
-                        <td><span id="gamemodeValue" class="readonly">-</span></td>
-                        <td class="offset" id="gamemodeOffset">-</td>
-                        <td><span class="readonly">(read-only)</span></td>
-                    </tr>
-                    <tr id="dsaRow">
-                        <td>DSA Supplies</td>
-                        <td><input type="number" id="dsaSupplies" min="0" max="32767"></td>
-                        <td class="offset" id="dsaOffset">-</td>
-                        <td>
-                            <span class="tooltip">ℹ️
-                                <span class="tooltip-text">_dsarocketprocentage - Max: 32767</span>
-                            </span>
-                        </td>
-                    </tr>
-                </table>
-            </div>
-            
-            <!-- Actions -->
-            <div class="panel">
-                <h2>💾 Actions</h2>
+            <section class="panel">
+                <h2>Save</h2>
+                <div id="validationStatus" class="validation-status"></div>
+                <div id="backupStatus" class="backup-status"></div>
                 <div class="actions">
-                    <button class="btn btn-primary" id="saveBtn">💾 Save File</button>
-                    <button class="btn btn-secondary" id="resetBtn">🔄 Reset Changes</button>
-                    <button class="btn btn-secondary" id="closeBtn">❌ Close</button>
+                    <button class="btn btn-secondary" id="undoBtn" disabled>Undo</button>
+                    <button class="btn btn-secondary" id="redoBtn" disabled>Redo</button>
+                    <button class="btn btn-primary" id="saveBtn">Save File</button>
+                    <button class="btn btn-secondary" id="downloadOriginalBtn" style="display:none;">Original</button>
+                    <button class="btn btn-secondary" id="resetBtn">Reset</button>
+                    <button class="btn btn-secondary" id="closeBtn">Close</button>
                 </div>
-            </div>
+            </section>
         </div>
+        
+        <footer>
+            <p>TheoTown Save Editor</p>
+            <p>Ctrl+Z Undo · Ctrl+Y Redo · Ctrl+S Save</p>
+        </footer>
     </div>
     
     <script>
@@ -987,6 +1002,630 @@ const FileParser = {
             saves: header['save counter'] || 0,
             lastModified: header['last modified']
         };
+    }
+};
+
+// Export for module systems
+
+
+// === validator.js ===
+/**
+ * TheoTown Save Editor - Validator
+ * Validates city data before saving
+ */
+
+const Validator = {
+    // Field value constraints
+    CONSTRAINTS: {
+        estate: { 
+            min: 0, 
+            max: 2147483647, 
+            warnAbove: 1000000000,
+            name: 'Money (Estate)'
+        },
+        rank: { 
+            min: 0, 
+            max: 64,
+            name: 'Rank Level'
+        },
+        dsaSupplies: { 
+            min: 0, 
+            max: 32767,
+            name: 'DSA Supplies'
+        },
+        name: {
+            minLength: 1,
+            maxLength: 255,
+            name: 'City Name'
+        }
+    },
+
+    // Valid gamemodes
+    VALID_GAMEMODES: ['EASY', 'NORMAL', 'HARD', 'SANDBOX'],
+
+    /**
+     * Validate city data before saving
+     * @param {Object} cityData - City data from CityManager
+     * @param {Object} binaryFields - Binary fields info
+     * @param {Object} displayData - Display data with current values
+     * @returns {Object} Validation result { valid, errors, warnings }
+     */
+    validate(cityData, binaryFields, displayData) {
+        const errors = [];
+        const warnings = [];
+
+        // Header structure validation
+        if (!cityData || !cityData.header) {
+            errors.push('Invalid city data structure');
+            return { valid: false, errors, warnings };
+        }
+
+        if (!cityData.binaryData || cityData.binaryData.length === 0) {
+            errors.push('Missing or empty binary data');
+            return { valid: false, errors, warnings };
+        }
+
+        // City name validation
+        const name = cityData.header.name;
+        if (!name || name.trim().length === 0) {
+            errors.push('City name cannot be empty');
+        } else if (name.length > this.CONSTRAINTS.name.maxLength) {
+            errors.push(`City name too long (max ${this.CONSTRAINTS.name.maxLength} chars)`);
+        }
+
+        // Gamemode validation
+        const gamemode = cityData.header.gamemode;
+        if (gamemode && !this.VALID_GAMEMODES.includes(gamemode)) {
+            warnings.push(`Unknown gamemode "${gamemode}" - may cause issues`);
+        }
+
+        // Numeric field validations
+        if (displayData && displayData.editable) {
+            const e = displayData.editable;
+
+            // Estate (Money)
+            if (e.binaryEstate !== null) {
+                const result = this.checkNumericField('estate', e.binaryEstate);
+                if (result.error) errors.push(result.error);
+                if (result.warning) warnings.push(result.warning);
+            }
+
+            // Rank
+            if (e.binaryRank !== null) {
+                const result = this.checkNumericField('rank', e.binaryRank);
+                if (result.error) errors.push(result.error);
+                if (result.warning) warnings.push(result.warning);
+            }
+
+            // DSA Supplies
+            if (e.binaryDsaSupplies !== null) {
+                const result = this.checkNumericField('dsaSupplies', e.binaryDsaSupplies);
+                if (result.error) errors.push(result.error);
+                if (result.warning) warnings.push(result.warning);
+            }
+        }
+
+        // Binary field integrity check
+        const integrityResult = this.checkBinaryIntegrity(binaryFields);
+        if (integrityResult.warning) {
+            warnings.push(integrityResult.warning);
+        }
+
+        return {
+            valid: errors.length === 0,
+            errors,
+            warnings
+        };
+    },
+
+    /**
+     * Check a numeric field against constraints
+     * @param {string} fieldName - Name of the field to check
+     * @param {number} value - Current value
+     * @returns {Object} { error, warning }
+     */
+    checkNumericField(fieldName, value) {
+        const constraint = this.CONSTRAINTS[fieldName];
+        if (!constraint) return {};
+
+        const result = {};
+        const displayName = constraint.name || fieldName;
+
+        // Check for non-numeric
+        if (typeof value !== 'number' || isNaN(value)) {
+            result.error = `${displayName}: Invalid number value`;
+            return result;
+        }
+
+        // Check min/max bounds
+        if (value < constraint.min) {
+            result.error = `${displayName}: Value ${value} is below minimum (${constraint.min})`;
+        } else if (value > constraint.max) {
+            result.error = `${displayName}: Value ${value} exceeds maximum (${constraint.max})`;
+        } else if (constraint.warnAbove && value > constraint.warnAbove) {
+            result.warning = `${displayName}: High value (${value.toLocaleString()}) may cause game issues`;
+        }
+
+        return result;
+    },
+
+    /**
+     * Check binary field integrity
+     * @param {Object} binaryFields - Binary fields from findAllFields
+     * @returns {Object} { warning }
+     */
+    checkBinaryIntegrity(binaryFields) {
+        const result = {};
+        
+        if (!binaryFields) {
+            result.warning = 'Could not verify binary field locations';
+            return result;
+        }
+
+        // Check if critical fields were found
+        const criticalFields = ['GAMEMODE'];
+        const missingFields = criticalFields.filter(f => !binaryFields[f]);
+        
+        if (missingFields.length > 0) {
+            result.warning = `Some fields not found in binary: ${missingFields.join(', ')}`;
+        }
+
+        return result;
+    },
+
+    /**
+     * Quick validation check (for real-time validation)
+     * @param {string} fieldName - Field being edited
+     * @param {*} value - New value
+     * @returns {Object} { valid, message }
+     */
+    quickCheck(fieldName, value) {
+        const constraint = this.CONSTRAINTS[fieldName];
+        if (!constraint) return { valid: true };
+
+        if (fieldName === 'name') {
+            if (!value || value.trim().length < constraint.minLength) {
+                return { valid: false, message: 'Name cannot be empty' };
+            }
+            if (value.length > constraint.maxLength) {
+                return { valid: false, message: `Max ${constraint.maxLength} characters` };
+            }
+            return { valid: true };
+        }
+
+        // Numeric validation
+        const numValue = Number(value);
+        if (isNaN(numValue)) {
+            return { valid: false, message: 'Must be a number' };
+        }
+        if (numValue < constraint.min) {
+            return { valid: false, message: `Min: ${constraint.min}` };
+        }
+        if (numValue > constraint.max) {
+            return { valid: false, message: `Max: ${constraint.max.toLocaleString()}` };
+        }
+
+        return { valid: true };
+    }
+};
+
+// Export for module systems
+
+
+// === backup.js ===
+/**
+ * TheoTown Save Editor - Backup Manager
+ * Handles backup storage using IndexedDB with memory fallback
+ */
+
+const BackupManager = {
+    dbName: 'theotown-save-editor',
+    storeName: 'backups',
+    db: null,
+    memoryBackup: null, // Fallback for when IndexedDB is unavailable
+
+    /**
+     * Initialize IndexedDB
+     * @returns {Promise<boolean>} Success status
+     */
+    async init() {
+        if (this.db) return true;
+
+        return new Promise((resolve) => {
+            try {
+                const request = indexedDB.open(this.dbName, 1);
+
+                request.onerror = () => {
+                    console.warn('IndexedDB not available, using memory backup');
+                    resolve(false);
+                };
+
+                request.onsuccess = (event) => {
+                    this.db = event.target.result;
+                    resolve(true);
+                };
+
+                request.onupgradeneeded = (event) => {
+                    const db = event.target.result;
+                    if (!db.objectStoreNames.contains(this.storeName)) {
+                        db.createObjectStore(this.storeName, { keyPath: 'filename' });
+                    }
+                };
+            } catch (e) {
+                console.warn('IndexedDB error:', e);
+                resolve(false);
+            }
+        });
+    },
+
+    /**
+     * Store a backup of the original file
+     * @param {string} filename - Original filename
+     * @param {Uint8Array} data - Original file data (before any edits)
+     * @param {Object} header - Original header
+     * @returns {Promise<boolean>} Success status
+     */
+    async store(filename, data, header) {
+        const backup = {
+            filename: filename,
+            data: new Uint8Array(data), // Clone the data
+            header: JSON.parse(JSON.stringify(header)), // Deep clone
+            timestamp: Date.now()
+        };
+
+        // Always store in memory as fallback
+        this.memoryBackup = backup;
+
+        // Try to persist to IndexedDB
+        await this.init();
+        if (!this.db) return true; // Memory backup succeeded
+
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(this.storeName, 'readwrite');
+                const store = tx.objectStore(this.storeName);
+                const request = store.put(backup);
+
+                request.onsuccess = () => resolve(true);
+                request.onerror = () => {
+                    console.warn('Failed to store backup in IndexedDB');
+                    resolve(true); // Memory backup still valid
+                };
+            } catch (e) {
+                console.warn('IndexedDB store error:', e);
+                resolve(true); // Memory backup still valid
+            }
+        });
+    },
+
+    /**
+     * Retrieve a backup
+     * @param {string} filename - Filename to retrieve
+     * @returns {Promise<Object|null>} Backup data or null
+     */
+    async retrieve(filename) {
+        // Check memory backup first
+        if (this.memoryBackup && this.memoryBackup.filename === filename) {
+            return this.memoryBackup;
+        }
+
+        // Try IndexedDB
+        await this.init();
+        if (!this.db) return null;
+
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(this.storeName, 'readonly');
+                const store = tx.objectStore(this.storeName);
+                const request = store.get(filename);
+
+                request.onsuccess = () => {
+                    const result = request.result;
+                    if (result) {
+                        this.memoryBackup = result; // Cache in memory
+                    }
+                    resolve(result || null);
+                };
+                request.onerror = () => resolve(null);
+            } catch (e) {
+                resolve(null);
+            }
+        });
+    },
+
+    /**
+     * Check if a backup exists
+     * @param {string} filename - Filename to check
+     * @returns {Promise<boolean>} Whether backup exists
+     */
+    async hasBackup(filename) {
+        if (this.memoryBackup && this.memoryBackup.filename === filename) {
+            return true;
+        }
+
+        const backup = await this.retrieve(filename);
+        return backup !== null;
+    },
+
+    /**
+     * Get backup as downloadable Blob
+     * @param {string} filename - Filename to retrieve
+     * @returns {Promise<Blob|null>} Blob for download or null
+     */
+    async getAsBlob(filename) {
+        const backup = await this.retrieve(filename);
+        if (!backup || !backup.data) return null;
+
+        return new Blob([backup.data], { type: 'application/octet-stream' });
+    },
+
+    /**
+     * Get backup info for display
+     * @param {string} filename - Filename to check
+     * @returns {Promise<Object|null>} Backup info { filename, timestamp, size }
+     */
+    async getBackupInfo(filename) {
+        const backup = await this.retrieve(filename);
+        if (!backup) return null;
+
+        return {
+            filename: backup.filename,
+            timestamp: backup.timestamp,
+            size: backup.data ? backup.data.length : 0,
+            hasHeader: !!backup.header
+        };
+    },
+
+    /**
+     * Clear backup for a file
+     * @param {string} filename - Filename to clear
+     * @returns {Promise<boolean>} Success status
+     */
+    async clear(filename) {
+        // Clear memory backup
+        if (this.memoryBackup && this.memoryBackup.filename === filename) {
+            this.memoryBackup = null;
+        }
+
+        // Clear from IndexedDB
+        await this.init();
+        if (!this.db) return true;
+
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(this.storeName, 'readwrite');
+                const store = tx.objectStore(this.storeName);
+                const request = store.delete(filename);
+
+                request.onsuccess = () => resolve(true);
+                request.onerror = () => resolve(false);
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    },
+
+    /**
+     * Clear all backups
+     * @returns {Promise<boolean>} Success status
+     */
+    async clearAll() {
+        this.memoryBackup = null;
+
+        await this.init();
+        if (!this.db) return true;
+
+        return new Promise((resolve) => {
+            try {
+                const tx = this.db.transaction(this.storeName, 'readwrite');
+                const store = tx.objectStore(this.storeName);
+                const request = store.clear();
+
+                request.onsuccess = () => resolve(true);
+                request.onerror = () => resolve(false);
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    }
+};
+
+// Export for module systems
+
+
+// === history.js ===
+/**
+ * TheoTown Save Editor - History Manager
+ * Handles undo/redo functionality with memory-efficient delta tracking
+ */
+
+const HistoryManager = {
+    // Configuration
+    maxHistory: 50,
+    
+    // State
+    undoStack: [],
+    redoStack: [],
+    isApplyingHistory: false,
+
+    /**
+     * Clear all history
+     */
+    clear() {
+        this.undoStack = [];
+        this.redoStack = [];
+    },
+
+    /**
+     * Record a change action
+     * @param {Object} action - Action to record
+     * @param {string} action.type - Type of action (setMoney, setRank, setName, etc.)
+     * @param {string} action.field - Field that was changed
+     * @param {*} action.oldValue - Value before the change
+     * @param {*} action.newValue - Value after the change
+     * @param {string} action.description - Human-readable description
+     */
+    record(action) {
+        // Don't record changes while undoing/redoing
+        if (this.isApplyingHistory) return;
+
+        // Don't record if old and new values are the same
+        if (action.oldValue === action.newValue) return;
+
+        // Add to undo stack
+        this.undoStack.push({
+            ...action,
+            timestamp: Date.now()
+        });
+
+        // Clear redo stack on new action
+        this.redoStack = [];
+
+        // Trim history if too long
+        if (this.undoStack.length > this.maxHistory) {
+            this.undoStack.shift();
+        }
+    },
+
+    /**
+     * Check if undo is available
+     * @returns {boolean}
+     */
+    canUndo() {
+        return this.undoStack.length > 0;
+    },
+
+    /**
+     * Check if redo is available
+     * @returns {boolean}
+     */
+    canRedo() {
+        return this.redoStack.length > 0;
+    },
+
+    /**
+     * Get the last action without removing it
+     * @returns {Object|null} Last action or null
+     */
+    peekUndo() {
+        if (this.undoStack.length === 0) return null;
+        return this.undoStack[this.undoStack.length - 1];
+    },
+
+    /**
+     * Get the next redo action without removing it
+     * @returns {Object|null} Next redo action or null
+     */
+    peekRedo() {
+        if (this.redoStack.length === 0) return null;
+        return this.redoStack[this.redoStack.length - 1];
+    },
+
+    /**
+     * Pop the last undo action
+     * @returns {Object|null} Action to undo or null
+     */
+    popUndo() {
+        if (this.undoStack.length === 0) return null;
+        const action = this.undoStack.pop();
+        this.redoStack.push(action);
+        return action;
+    },
+
+    /**
+     * Pop the next redo action
+     * @returns {Object|null} Action to redo or null
+     */
+    popRedo() {
+        if (this.redoStack.length === 0) return null;
+        const action = this.redoStack.pop();
+        this.undoStack.push(action);
+        return action;
+    },
+
+    /**
+     * Start applying history (prevents recording)
+     */
+    startApplying() {
+        this.isApplyingHistory = true;
+    },
+
+    /**
+     * Stop applying history
+     */
+    stopApplying() {
+        this.isApplyingHistory = false;
+    },
+
+    /**
+     * Get undo stack length
+     * @returns {number}
+     */
+    getUndoCount() {
+        return this.undoStack.length;
+    },
+
+    /**
+     * Get redo stack length
+     * @returns {number}
+     */
+    getRedoCount() {
+        return this.redoStack.length;
+    },
+
+    /**
+     * Get history summary for display
+     * @param {number} limit - Maximum items to return
+     * @returns {Array} Array of action descriptions
+     */
+    getHistorySummary(limit = 10) {
+        const items = [];
+        const stack = [...this.undoStack].reverse();
+        
+        for (let i = 0; i < Math.min(limit, stack.length); i++) {
+            items.push({
+                description: stack[i].description || `${stack[i].field}: ${stack[i].oldValue} → ${stack[i].newValue}`,
+                timestamp: stack[i].timestamp,
+                isCurrent: i === 0
+            });
+        }
+        
+        return items;
+    },
+
+    /**
+     * Create action description helper
+     * @param {string} field - Field name
+     * @param {*} oldValue - Old value
+     * @param {*} newValue - New value
+     * @returns {string} Human-readable description
+     */
+    createDescription(field, oldValue, newValue) {
+        const formatValue = (v) => {
+            if (typeof v === 'number') {
+                return v.toLocaleString();
+            }
+            if (typeof v === 'boolean') {
+                return v ? 'ON' : 'OFF';
+            }
+            if (typeof v === 'string' && v.length > 20) {
+                return v.substring(0, 17) + '...';
+            }
+            return String(v);
+        };
+
+        const fieldNames = {
+            'estate': 'Money',
+            'money': 'Money',
+            'rank': 'Rank',
+            'name': 'City Name',
+            'gamemode': 'Difficulty',
+            'uber': 'Uber Mode',
+            'dsaSupplies': 'DSA Supplies'
+        };
+
+        const displayName = fieldNames[field] || field;
+        return `${displayName}: ${formatValue(oldValue)} → ${formatValue(newValue)}`;
     }
 };
 
@@ -2389,11 +3028,12 @@ const Actions = {
 // Export for module systems
 
 
-
-// Initialize on DOM ready
-document.addEventListener('DOMContentLoaded', () => {
-    Actions.init();
-});
+    </script>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            Actions.init();
+        });
     </script>
 </body>
 </html>
