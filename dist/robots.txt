@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://h4pp3nstance.github.io/theotown-save-editor/sitemap.xml
