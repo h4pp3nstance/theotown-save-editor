@@ -19,7 +19,7 @@ Web-based editor for TheoTown .city save files
 ## Usage
 
 ### Online
-Visit the GitHub Pages deployment: https://ibaysander.github.io/theotown-save-editor/
+Visit the GitHub Pages deployment: [https://h4pp3nstance.github.io/theotown-save-editor/](https://h4pp3nstance.github.io/theotown-save-editor/)
 
 ### Local Development
 ```bash
