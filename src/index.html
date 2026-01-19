@@ -12,7 +12,7 @@
     <div class="container">
         <header>
             <h1>TheoTown Save Editor</h1>
-            <p class="version">v3.0.1</p>
+            <p class="version">v3.1.0</p>
         </header>
         
         <div id="error"></div>
@@ -97,7 +97,7 @@
                         </tr>
                         <tr id="binaryEstateRow">
                             <td>Money</td>
-                            <td><input type="number" id="binaryEstate" min="0" max="2147483647"></td>
+                            <td><input type="text" id="binaryEstate" inputmode="numeric" pattern="[0-9,.eE+\-]*" placeholder="0"></td>
                             <td class="offset" id="estateOffset">—</td>
                             <td>
                                 <span class="tooltip">?

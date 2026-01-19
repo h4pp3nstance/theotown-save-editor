@@ -45,9 +45,46 @@ const Display = {
         
         // Editable fields - Binary
         if (e.binaryEstate !== null) {
-            document.getElementById('binaryEstate').value = Math.floor(e.binaryEstate);
+            const estateInput = document.getElementById('binaryEstate');
+            
+            // Format and display the value
+            let displayValue = Math.floor(e.binaryEstate);
+            
+            // For very large numbers, use scientific notation or localized string
+            if (displayValue > 1e15) {
+                // Use scientific notation for extremely large numbers
+                estateInput.value = displayValue.toExponential(6);
+            } else {
+                // Use localized number with thousand separators for readability
+                estateInput.value = displayValue.toLocaleString('en-US', { useGrouping: true, maximumFractionDigits: 0 });
+            }
+            
             document.getElementById('binaryEstateRow').style.display = '';
             document.getElementById('estateOffset').textContent = o.estate || '-';
+            
+            // Update tooltip based on type
+            if (cityData.estateType && cityData.estateType.info) {
+                const typeInfo = cityData.estateType.info;
+                
+                // Update tooltip with type info
+                const tooltipText = document.querySelector('#binaryEstateRow .tooltip-text');
+                if (tooltipText) {
+                    let tooltipContent = `Binary: estate (${typeInfo.name})`;
+                    
+                    // Show max value info
+                    if (typeInfo.name === 'Double' || typeInfo.name === 'Double64') {
+                        tooltipContent += `\nMax: ~1.8×10³⁰⁸ (Double)`;
+                        tooltipContent += `\nTip: Use scientific notation (e.g., 1.5e15)`;
+                    } else {
+                        tooltipContent += `\nMax: ${this.formatNumber(typeInfo.max)}`;
+                    }
+                    tooltipText.textContent = tooltipContent;
+                }
+                
+                // Remove precision warning class (no longer limiting to MAX_SAFE_INTEGER)
+                estateInput.classList.remove('precision-warning');
+                estateInput.title = `Type: ${typeInfo.name} | Enter value with commas or scientific notation`;
+            }
         } else {
             document.getElementById('binaryEstateRow').style.display = 'none';
         }
@@ -190,10 +227,29 @@ const Display = {
         const successEl = document.getElementById('success');
         if (successEl) {
             successEl.textContent = message;
+            successEl.className = 'toast success';
             successEl.style.display = 'block';
             setTimeout(() => {
                 successEl.style.display = 'none';
             }, 3000);
+        }
+    },
+
+    /**
+     * Show warning message
+     * @param {string} message - Warning message to display
+     */
+    showWarning(message) {
+        const successEl = document.getElementById('success');
+        if (successEl) {
+            successEl.textContent = '⚠️ ' + message;
+            successEl.className = 'toast warning';
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 5000);
+        } else {
+            alert('Warning: ' + message);
         }
     },
 

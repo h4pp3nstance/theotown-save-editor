@@ -1,6 +1,6 @@
 {
   "name": "theotown-save-editor",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "Web-based editor for TheoTown .city save files",
   "main": "build.js",
   "scripts": {
@@ -19,5 +19,8 @@
   "repository": {
     "type": "git",
     "url": ""
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
   }
 }

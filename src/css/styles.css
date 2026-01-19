@@ -158,6 +158,12 @@ h1 {
     border: 1px solid var(--success);
 }
 
+#success.warning {
+    background: var(--warning-light);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+}
+
 #changesIndicator {
     background: var(--warning-light);
     color: var(--warning);
@@ -381,6 +387,17 @@ input[type="file"] {
     box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+/* Precision warning for values exceeding MAX_SAFE_INTEGER */
+.edit-table input.precision-warning {
+    border-color: var(--warning);
+    background: var(--warning-light);
+}
+
+.edit-table input.precision-warning:focus {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.2);
+}
+
 .edit-table input::placeholder {
     color: var(--text-muted);
 }
@@ -562,8 +579,7 @@ input[type="file"] {
     visibility: hidden;
     position: absolute;
     bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
     background: var(--text-primary);
     color: var(--bg-surface);
     padding: var(--space-2) var(--space-3);
@@ -579,8 +595,7 @@ input[type="file"] {
     content: '';
     position: absolute;
     top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
+    right: 6px;
     border: 4px solid transparent;
     border-top-color: var(--text-primary);
 }

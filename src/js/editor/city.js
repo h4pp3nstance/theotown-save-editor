@@ -104,6 +104,13 @@ const CityManager = {
                 binaryDsaSupplies: binaryDsaSupplies,
                 binaryName: binaryName
             },
+            // Type information for estate field
+            estateType: fields.ESTATE ? {
+                type: fields.ESTATE.type,
+                info: BinaryFields.getTypeInfo(fields.ESTATE.type),
+                exceedsMaxSafe: fields.ESTATE._exceedsMaxSafe || false,
+                originalValue: fields.ESTATE._originalValue
+            } : null,
             fieldOffsets: {
                 estate: fields.ESTATE?.valueOffset,
                 rank: fields.RANK?.valueOffset,
@@ -124,23 +131,44 @@ const CityManager = {
     /**
      * Update money value
      * @param {number} value - New money value
+     * @returns {Object} Result { success, clamped, maxValue, typeInfo }
      */
     setMoney(value) {
-        if (!this.currentCity) return;
+        if (!this.currentCity) return { success: false };
         
-        // Update header
-        this.currentCity.header.money = value;
+        const field = this.binaryFields.ESTATE;
+        let clamped = false;
+        let maxValue = null;
+        let typeInfo = null;
         
         // Update binary if field found
-        if (this.binaryFields.ESTATE) {
+        if (field) {
+            typeInfo = BinaryFields.getTypeInfo(field.type);
+            
+            // Clamp value to max allowed by current type
+            // NOTE: Type upgrade is NOT supported because TheoTown's Binary JSON format
+            // uses member indices that would be corrupted by inserting bytes.
+            // To get higher money limits, earn > 32767 in-game to trigger automatic upgrade.
+            if (typeInfo && value > typeInfo.max) {
+                console.warn(`Money value ${value} exceeds max for ${typeInfo.name} (${typeInfo.max}). Clamping.`);
+                value = typeInfo.max;
+                clamped = true;
+                maxValue = typeInfo.max;
+            }
+            
+            // Write value
             BinaryFields.writeEstate(
                 this.currentCity.binaryData, 
-                this.binaryFields.ESTATE, 
+                field, 
                 value
             );
         }
         
+        // Update header (with possibly clamped value)
+        this.currentCity.header.money = value;
+        
         this.hasChanges = true;
+        return { success: true, clamped, maxValue, typeInfo };
     },
 
     /**

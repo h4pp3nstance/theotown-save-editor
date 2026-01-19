@@ -165,6 +165,12 @@ h1 {
     border: 1px solid var(--success);
 }
 
+#success.warning {
+    background: var(--warning-light);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+}
+
 #changesIndicator {
     background: var(--warning-light);
     color: var(--warning);
@@ -388,6 +394,17 @@ input[type="file"] {
     box-shadow: 0 0 0 3px var(--accent-light);
 }
 
+/* Precision warning for values exceeding MAX_SAFE_INTEGER */
+.edit-table input.precision-warning {
+    border-color: var(--warning);
+    background: var(--warning-light);
+}
+
+.edit-table input.precision-warning:focus {
+    border-color: var(--warning);
+    box-shadow: 0 0 0 3px rgba(202, 138, 4, 0.2);
+}
+
 .edit-table input::placeholder {
     color: var(--text-muted);
 }
@@ -569,8 +586,7 @@ input[type="file"] {
     visibility: hidden;
     position: absolute;
     bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    right: 0;
     background: var(--text-primary);
     color: var(--bg-surface);
     padding: var(--space-2) var(--space-3);
@@ -586,8 +602,7 @@ input[type="file"] {
     content: '';
     position: absolute;
     top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
+    right: 6px;
     border: 4px solid transparent;
     border-top-color: var(--text-primary);
 }
@@ -667,7 +682,7 @@ footer p + p {
     <div class="container">
         <header>
             <h1>TheoTown Save Editor</h1>
-            <p class="version">v3.0.1</p>
+            <p class="version">v3.1.0</p>
         </header>
         
         <div id="error"></div>
@@ -752,7 +767,7 @@ footer p + p {
                         </tr>
                         <tr id="binaryEstateRow">
                             <td>Money</td>
-                            <td><input type="number" id="binaryEstate" min="0" max="2147483647"></td>
+                            <td><input type="text" id="binaryEstate" inputmode="numeric" pattern="[0-9,.eE+\-]*" placeholder="0"></td>
                             <td class="offset" id="estateOffset">—</td>
                             <td>
                                 <span class="tooltip">?
@@ -903,6 +918,7 @@ const BinaryUtils = {
         INT32: 0x08,       // 4 bytes
         INT16: 0x0e,       // 2 bytes
         INT8: 0x0f,        // 1 byte
+        DOUBLE64: 0x10,    // 8 bytes (alternative Double type)
         BOOL_TRUE: 0x11,   // No value byte
         BOOL_FALSE: 0x12,  // No value byte
         STRING: 0x16       // Variable length
@@ -1016,11 +1032,12 @@ const FileParser = {
 
 const Validator = {
     // Field value constraints
+    // Note: estate max is dynamic based on binary type, see getEstateConstraint()
     CONSTRAINTS: {
         estate: { 
             min: 0, 
-            max: 2147483647, 
-            warnAbove: 1000000000,
+            // max is dynamic, determined by field type
+            warnAbove: 1000000000000, // 1 trillion - warn for very high values
             name: 'Money (Estate)'
         },
         rank: { 
@@ -1038,6 +1055,34 @@ const Validator = {
             maxLength: 255,
             name: 'City Name'
         }
+    },
+
+    // Max values by type byte
+    // Note: Double can store up to ~1.8e308, but we use MAX_VALUE for practical validation
+    TYPE_MAX_VALUES: {
+        0x0e: 32767,              // Int16
+        0x0f: 127,                // Int8
+        0x08: 2147483647,         // Int32
+        0x10: Number.MAX_VALUE,   // Double64 (alternative) - full Double range
+        0x07: Number.MAX_VALUE    // Double - full Double range
+    },
+
+    /**
+     * Get estate constraint with dynamic max based on field type
+     * @param {Object} estateField - Estate field info from BinaryFields
+     * @returns {Object} Constraint with correct max value
+     */
+    getEstateConstraint(estateField) {
+        const baseConstraint = { ...this.CONSTRAINTS.estate };
+        
+        if (estateField && estateField.type) {
+            baseConstraint.max = this.TYPE_MAX_VALUES[estateField.type] || Number.MAX_SAFE_INTEGER;
+        } else {
+            // Default to safe max if type unknown
+            baseConstraint.max = Number.MAX_SAFE_INTEGER;
+        }
+        
+        return baseConstraint;
     },
 
     // Valid gamemodes
@@ -1083,9 +1128,13 @@ const Validator = {
         if (displayData && displayData.editable) {
             const e = displayData.editable;
 
-            // Estate (Money)
+            // Estate (Money) - uses dynamic constraint based on field type
             if (e.binaryEstate !== null) {
-                const result = this.checkNumericField('estate', e.binaryEstate);
+                const estateField = binaryFields?.ESTATE;
+                const result = this.checkNumericFieldWithConstraint(
+                    this.getEstateConstraint(estateField), 
+                    e.binaryEstate
+                );
                 if (result.error) errors.push(result.error);
                 if (result.warning) warnings.push(result.warning);
             }
@@ -1127,9 +1176,20 @@ const Validator = {
     checkNumericField(fieldName, value) {
         const constraint = this.CONSTRAINTS[fieldName];
         if (!constraint) return {};
+        return this.checkNumericFieldWithConstraint(constraint, value);
+    },
+
+    /**
+     * Check a numeric field against a specific constraint
+     * @param {Object} constraint - Constraint object with min, max, warnAbove, name
+     * @param {number} value - Current value
+     * @returns {Object} { error, warning }
+     */
+    checkNumericFieldWithConstraint(constraint, value) {
+        if (!constraint) return {};
 
         const result = {};
-        const displayName = constraint.name || fieldName;
+        const displayName = constraint.name || 'Field';
 
         // Check for non-numeric
         if (typeof value !== 'number' || isNaN(value)) {
@@ -1140,10 +1200,10 @@ const Validator = {
         // Check min/max bounds
         if (value < constraint.min) {
             result.error = `${displayName}: Value ${value} is below minimum (${constraint.min})`;
-        } else if (value > constraint.max) {
-            result.error = `${displayName}: Value ${value} exceeds maximum (${constraint.max})`;
+        } else if (constraint.max !== undefined && value > constraint.max) {
+            result.error = `${displayName}: Value ${value.toLocaleString()} exceeds maximum (${constraint.max.toLocaleString()})`;
         } else if (constraint.warnAbove && value > constraint.warnAbove) {
-            result.warning = `${displayName}: High value (${value.toLocaleString()}) may cause game issues`;
+            result.warning = `${displayName}: Very high value (${value.toLocaleString()}) - use with caution`;
         }
 
         return result;
@@ -1177,10 +1237,17 @@ const Validator = {
      * Quick validation check (for real-time validation)
      * @param {string} fieldName - Field being edited
      * @param {*} value - New value
+     * @param {Object} fieldInfo - Optional field info (for dynamic constraints like estate)
      * @returns {Object} { valid, message }
      */
-    quickCheck(fieldName, value) {
-        const constraint = this.CONSTRAINTS[fieldName];
+    quickCheck(fieldName, value, fieldInfo) {
+        let constraint = this.CONSTRAINTS[fieldName];
+        
+        // For estate, get dynamic constraint based on field type
+        if (fieldName === 'estate' && fieldInfo) {
+            constraint = this.getEstateConstraint(fieldInfo);
+        }
+        
         if (!constraint) return { valid: true };
 
         if (fieldName === 'name') {
@@ -1201,7 +1268,7 @@ const Validator = {
         if (numValue < constraint.min) {
             return { valid: false, message: `Min: ${constraint.min}` };
         }
-        if (numValue > constraint.max) {
+        if (constraint.max !== undefined && numValue > constraint.max) {
             return { valid: false, message: `Max: ${constraint.max.toLocaleString()}` };
         }
 
@@ -1655,6 +1722,144 @@ const BinaryFields = {
     // Max rank level
     MAX_RANK: 64,
 
+    // Type information for numeric fields
+    // Note: Double/Double64 can store values up to ~1.8e308 (Number.MAX_VALUE)
+    TYPE_INFO: {
+        0x0e: { name: 'Int16', size: 2, max: 32767, signed: true },
+        0x0f: { name: 'Int8', size: 1, max: 127, signed: true },
+        0x08: { name: 'Int32', size: 4, max: 2147483647, signed: true },
+        0x10: { name: 'Double64', size: 8, max: Number.MAX_VALUE, signed: true },  // Alternative Double type - full 64-bit float range
+        0x07: { name: 'Double', size: 8, max: Number.MAX_VALUE, signed: true },    // Double - full 64-bit float range
+        0x11: { name: 'Bool(true)', size: 0, max: 1, signed: false },
+        0x12: { name: 'Bool(false)', size: 0, max: 1, signed: false },
+        0x16: { name: 'String', size: -1, max: null, signed: false }
+    },
+
+    // Valid upgrade paths for estate field (Int16 → Int32 → Double)
+    // NOTE: Type upgrade is NOT safe in TheoTown's Binary JSON format!
+    // The format uses member indices (0x13 0x00) before each field in objects,
+    // and inserting bytes breaks the structure causing "Expected a name but was -1" errors.
+    // To get higher money limits, users should earn > 32767 in-game to trigger TheoTown's
+    // automatic type upgrade mechanism.
+    UPGRADE_PATHS: {
+        0x0e: 0x08,  // Int16 → Int32
+        0x08: 0x07   // Int32 → Double (0x07 or 0x10)
+    },
+
+    /**
+     * Get type info for a type byte
+     * @param {number} typeByte - Type byte
+     * @returns {Object|null} Type info { name, size, max, signed }
+     */
+    getTypeInfo(typeByte) {
+        return this.TYPE_INFO[typeByte] || null;
+    },
+
+    /**
+     * Get value byte size for a type
+     * @param {number} typeByte - Type byte
+     * @returns {number} Size in bytes (0 for bool, -1 for variable/string)
+     */
+    getValueSize(typeByte) {
+        const info = this.TYPE_INFO[typeByte];
+        return info ? info.size : 0;
+    },
+
+    /**
+     * Check if upgrade from one type to another is valid
+     * @param {number} fromType - Current type byte
+     * @param {number} toType - Target type byte
+     * @returns {boolean} True if upgrade is valid
+     */
+    canUpgrade(fromType, toType) {
+        return this.UPGRADE_PATHS[fromType] === toType;
+    },
+
+    /**
+     * Get the next upgrade type for a given type
+     * @param {number} currentType - Current type byte
+     * @returns {number|null} Next type byte or null if no upgrade available
+     */
+    getNextUpgradeType(currentType) {
+        return this.UPGRADE_PATHS[currentType] || null;
+    },
+
+    /**
+     * Determine required type for a value
+     * @param {number} value - The value to store
+     * @returns {number} Minimum type byte that can hold this value
+     */
+    getRequiredType(value) {
+        if (value <= 32767) return 0x0e;           // Int16
+        if (value <= 2147483647) return 0x08;      // Int32
+        return 0x07;                                // Double
+    },
+
+    /**
+     * Upgrade a field's type to accommodate larger values
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @param {number} newType - Target type byte
+     * @param {number} currentValue - Current value to preserve
+     * @returns {Uint8Array|null} New binary data or null on failure
+     */
+    upgradeFieldType(data, field, newType, currentValue) {
+        if (!field) return null;
+        
+        const oldTypeInfo = this.getTypeInfo(field.type);
+        const newTypeInfo = this.getTypeInfo(newType);
+        
+        if (!oldTypeInfo || !newTypeInfo) return null;
+        if (oldTypeInfo.size < 0 || newTypeInfo.size < 0) return null; // Can't upgrade variable-length types
+        
+        const sizeDiff = newTypeInfo.size - oldTypeInfo.size;
+        if (sizeDiff <= 0) return null; // Only upgrade to larger types
+        
+        // Calculate positions
+        const beforeField = data.slice(0, field.typeOffset);
+        const afterValue = data.slice(field.valueOffset + oldTypeInfo.size);
+        
+        // Build new array
+        const newData = new Uint8Array(data.length + sizeDiff);
+        let offset = 0;
+        
+        // Copy everything before type byte
+        newData.set(beforeField, offset);
+        offset += beforeField.length;
+        
+        // Write new type byte
+        newData[offset] = newType;
+        offset += 1;
+        
+        // Write value with new type
+        if (newType === 0x08) {
+            // Int32 (4 bytes, big-endian)
+            const val = Math.max(0, Math.min(2147483647, Math.floor(currentValue)));
+            newData[offset] = (val >> 24) & 0xFF;
+            newData[offset + 1] = (val >> 16) & 0xFF;
+            newData[offset + 2] = (val >> 8) & 0xFF;
+            newData[offset + 3] = val & 0xFF;
+            offset += 4;
+        } else if (newType === 0x07) {
+            // Double (8 bytes, big-endian)
+            const buffer = new ArrayBuffer(8);
+            const view = new DataView(buffer);
+            view.setFloat64(0, currentValue, false);
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < 8; i++) {
+                newData[offset + i] = bytes[i];
+            }
+            offset += 8;
+        } else {
+            return null; // Unsupported target type
+        }
+        
+        // Copy everything after old value
+        newData.set(afterValue, offset);
+        
+        return newData;
+    },
+
     /**
      * Find a binary field by name
      * @param {Uint8Array} data - Binary data
@@ -1729,17 +1934,30 @@ const BinaryFields = {
     readEstate(data, field) {
         if (!field) return null;
         
-        if (field.type === 0x07) {
+        if (field.type === 0x07 || field.type === 0x10) {
             // Double (8 bytes, big-endian)
-            const bytes = data.slice(field.valueOffset, field.valueOffset + 8);
-            const view = new DataView(bytes.buffer);
-            return view.getFloat64(0, false);
+            // Type 0x07 and 0x10 are both Double types in TheoTown's binary format
+            const buffer = new ArrayBuffer(8);
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < 8; i++) {
+                bytes[i] = data[field.valueOffset + i];
+            }
+            const view = new DataView(buffer);
+            const value = view.getFloat64(0, false);
+            
+            // Store original value for reference
+            field._originalValue = value;
+            
+            return value;
         } else if (field.type === 0x08) {
             // Int32 (4 bytes, big-endian)
             return (data[field.valueOffset] << 24) |
                    (data[field.valueOffset + 1] << 16) |
                    (data[field.valueOffset + 2] << 8) |
                    data[field.valueOffset + 3];
+        } else if (field.type === 0x0e) {
+            // Int16 (2 bytes, big-endian) - used in some save versions
+            return (data[field.valueOffset] << 8) | data[field.valueOffset + 1];
         }
         return null;
     },
@@ -1753,8 +1971,9 @@ const BinaryFields = {
     writeEstate(data, field, value) {
         if (!field) return;
         
-        if (field.type === 0x07) {
+        if (field.type === 0x07 || field.type === 0x10) {
             // Double (8 bytes, big-endian)
+            // Type 0x07 and 0x10 are both Double types in TheoTown's binary format
             const buffer = new ArrayBuffer(8);
             const view = new DataView(buffer);
             view.setFloat64(0, value, false);
@@ -1769,6 +1988,11 @@ const BinaryFields = {
             data[field.valueOffset + 1] = (value >> 16) & 0xFF;
             data[field.valueOffset + 2] = (value >> 8) & 0xFF;
             data[field.valueOffset + 3] = value & 0xFF;
+        } else if (field.type === 0x0e) {
+            // Int16 (2 bytes, big-endian) - used in some save versions
+            value = Math.max(0, Math.min(32767, Math.floor(value)));
+            data[field.valueOffset] = (value >> 8) & 0xFF;
+            data[field.valueOffset + 1] = value & 0xFF;
         }
     },
 
@@ -2116,6 +2340,13 @@ const CityManager = {
                 binaryDsaSupplies: binaryDsaSupplies,
                 binaryName: binaryName
             },
+            // Type information for estate field
+            estateType: fields.ESTATE ? {
+                type: fields.ESTATE.type,
+                info: BinaryFields.getTypeInfo(fields.ESTATE.type),
+                exceedsMaxSafe: fields.ESTATE._exceedsMaxSafe || false,
+                originalValue: fields.ESTATE._originalValue
+            } : null,
             fieldOffsets: {
                 estate: fields.ESTATE?.valueOffset,
                 rank: fields.RANK?.valueOffset,
@@ -2136,23 +2367,44 @@ const CityManager = {
     /**
      * Update money value
      * @param {number} value - New money value
+     * @returns {Object} Result { success, clamped, maxValue, typeInfo }
      */
     setMoney(value) {
-        if (!this.currentCity) return;
+        if (!this.currentCity) return { success: false };
         
-        // Update header
-        this.currentCity.header.money = value;
+        const field = this.binaryFields.ESTATE;
+        let clamped = false;
+        let maxValue = null;
+        let typeInfo = null;
         
         // Update binary if field found
-        if (this.binaryFields.ESTATE) {
+        if (field) {
+            typeInfo = BinaryFields.getTypeInfo(field.type);
+            
+            // Clamp value to max allowed by current type
+            // NOTE: Type upgrade is NOT supported because TheoTown's Binary JSON format
+            // uses member indices that would be corrupted by inserting bytes.
+            // To get higher money limits, earn > 32767 in-game to trigger automatic upgrade.
+            if (typeInfo && value > typeInfo.max) {
+                console.warn(`Money value ${value} exceeds max for ${typeInfo.name} (${typeInfo.max}). Clamping.`);
+                value = typeInfo.max;
+                clamped = true;
+                maxValue = typeInfo.max;
+            }
+            
+            // Write value
             BinaryFields.writeEstate(
                 this.currentCity.binaryData, 
-                this.binaryFields.ESTATE, 
+                field, 
                 value
             );
         }
         
+        // Update header (with possibly clamped value)
+        this.currentCity.header.money = value;
+        
         this.hasChanges = true;
+        return { success: true, clamped, maxValue, typeInfo };
     },
 
     /**
@@ -2515,9 +2767,46 @@ const Display = {
         
         // Editable fields - Binary
         if (e.binaryEstate !== null) {
-            document.getElementById('binaryEstate').value = Math.floor(e.binaryEstate);
+            const estateInput = document.getElementById('binaryEstate');
+            
+            // Format and display the value
+            let displayValue = Math.floor(e.binaryEstate);
+            
+            // For very large numbers, use scientific notation or localized string
+            if (displayValue > 1e15) {
+                // Use scientific notation for extremely large numbers
+                estateInput.value = displayValue.toExponential(6);
+            } else {
+                // Use localized number with thousand separators for readability
+                estateInput.value = displayValue.toLocaleString('en-US', { useGrouping: true, maximumFractionDigits: 0 });
+            }
+            
             document.getElementById('binaryEstateRow').style.display = '';
             document.getElementById('estateOffset').textContent = o.estate || '-';
+            
+            // Update tooltip based on type
+            if (cityData.estateType && cityData.estateType.info) {
+                const typeInfo = cityData.estateType.info;
+                
+                // Update tooltip with type info
+                const tooltipText = document.querySelector('#binaryEstateRow .tooltip-text');
+                if (tooltipText) {
+                    let tooltipContent = `Binary: estate (${typeInfo.name})`;
+                    
+                    // Show max value info
+                    if (typeInfo.name === 'Double' || typeInfo.name === 'Double64') {
+                        tooltipContent += `\nMax: ~1.8×10³⁰⁸ (Double)`;
+                        tooltipContent += `\nTip: Use scientific notation (e.g., 1.5e15)`;
+                    } else {
+                        tooltipContent += `\nMax: ${this.formatNumber(typeInfo.max)}`;
+                    }
+                    tooltipText.textContent = tooltipContent;
+                }
+                
+                // Remove precision warning class (no longer limiting to MAX_SAFE_INTEGER)
+                estateInput.classList.remove('precision-warning');
+                estateInput.title = `Type: ${typeInfo.name} | Enter value with commas or scientific notation`;
+            }
         } else {
             document.getElementById('binaryEstateRow').style.display = 'none';
         }
@@ -2660,10 +2949,29 @@ const Display = {
         const successEl = document.getElementById('success');
         if (successEl) {
             successEl.textContent = message;
+            successEl.className = 'toast success';
             successEl.style.display = 'block';
             setTimeout(() => {
                 successEl.style.display = 'none';
             }, 3000);
+        }
+    },
+
+    /**
+     * Show warning message
+     * @param {string} message - Warning message to display
+     */
+    showWarning(message) {
+        const successEl = document.getElementById('success');
+        if (successEl) {
+            successEl.textContent = '⚠️ ' + message;
+            successEl.className = 'toast warning';
+            successEl.style.display = 'block';
+            setTimeout(() => {
+                successEl.style.display = 'none';
+            }, 5000);
+        } else {
+            alert('Warning: ' + message);
         }
     },
 
@@ -2840,8 +3148,47 @@ const Actions = {
      * @param {Event} e - Change event
      */
     handleMoneyChange(e) {
-        const value = parseInt(e.target.value) || 0;
-        CityManager.setMoney(value);
+        // Parse input: remove commas, handle scientific notation
+        let inputValue = e.target.value.replace(/,/g, '').trim();
+        
+        // Handle empty or invalid input
+        if (!inputValue || inputValue === '-') {
+            inputValue = '0';
+        }
+        
+        // Parse as number (handles scientific notation like 1.5e10)
+        let value = parseFloat(inputValue);
+        
+        // Validate parsed value
+        if (isNaN(value)) {
+            Display.showError('Invalid number format');
+            this.refreshDisplay();
+            return;
+        }
+        
+        // Handle Infinity (value exceeds Double max ~1.7976931348623157e+308)
+        if (!isFinite(value)) {
+            value = Number.MAX_VALUE;
+            Display.showWarning(
+                `Value exceeds maximum Double (~1.8×10³⁰⁸). Automatically set to max value.`
+            );
+        }
+        
+        // Clamp to non-negative
+        if (value < 0) value = 0;
+        
+        // Floor the value (no decimals for money)
+        value = Math.floor(value);
+        
+        const result = CityManager.setMoney(value);
+        
+        if (result.clamped) {
+            Display.showWarning(
+                `Value clamped to ${result.maxValue?.toLocaleString()} (max for ${result.typeInfo?.name || 'current type'}). ` +
+                `To store higher values, earn > ${result.maxValue?.toLocaleString()} in-game first.`
+            );
+        }
+        
         this.refreshDisplay();
     },
 

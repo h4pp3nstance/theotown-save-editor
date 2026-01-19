@@ -20,6 +20,144 @@ const BinaryFields = {
     // Max rank level
     MAX_RANK: 64,
 
+    // Type information for numeric fields
+    // Note: Double/Double64 can store values up to ~1.8e308 (Number.MAX_VALUE)
+    TYPE_INFO: {
+        0x0e: { name: 'Int16', size: 2, max: 32767, signed: true },
+        0x0f: { name: 'Int8', size: 1, max: 127, signed: true },
+        0x08: { name: 'Int32', size: 4, max: 2147483647, signed: true },
+        0x10: { name: 'Double64', size: 8, max: Number.MAX_VALUE, signed: true },  // Alternative Double type - full 64-bit float range
+        0x07: { name: 'Double', size: 8, max: Number.MAX_VALUE, signed: true },    // Double - full 64-bit float range
+        0x11: { name: 'Bool(true)', size: 0, max: 1, signed: false },
+        0x12: { name: 'Bool(false)', size: 0, max: 1, signed: false },
+        0x16: { name: 'String', size: -1, max: null, signed: false }
+    },
+
+    // Valid upgrade paths for estate field (Int16 → Int32 → Double)
+    // NOTE: Type upgrade is NOT safe in TheoTown's Binary JSON format!
+    // The format uses member indices (0x13 0x00) before each field in objects,
+    // and inserting bytes breaks the structure causing "Expected a name but was -1" errors.
+    // To get higher money limits, users should earn > 32767 in-game to trigger TheoTown's
+    // automatic type upgrade mechanism.
+    UPGRADE_PATHS: {
+        0x0e: 0x08,  // Int16 → Int32
+        0x08: 0x07   // Int32 → Double (0x07 or 0x10)
+    },
+
+    /**
+     * Get type info for a type byte
+     * @param {number} typeByte - Type byte
+     * @returns {Object|null} Type info { name, size, max, signed }
+     */
+    getTypeInfo(typeByte) {
+        return this.TYPE_INFO[typeByte] || null;
+    },
+
+    /**
+     * Get value byte size for a type
+     * @param {number} typeByte - Type byte
+     * @returns {number} Size in bytes (0 for bool, -1 for variable/string)
+     */
+    getValueSize(typeByte) {
+        const info = this.TYPE_INFO[typeByte];
+        return info ? info.size : 0;
+    },
+
+    /**
+     * Check if upgrade from one type to another is valid
+     * @param {number} fromType - Current type byte
+     * @param {number} toType - Target type byte
+     * @returns {boolean} True if upgrade is valid
+     */
+    canUpgrade(fromType, toType) {
+        return this.UPGRADE_PATHS[fromType] === toType;
+    },
+
+    /**
+     * Get the next upgrade type for a given type
+     * @param {number} currentType - Current type byte
+     * @returns {number|null} Next type byte or null if no upgrade available
+     */
+    getNextUpgradeType(currentType) {
+        return this.UPGRADE_PATHS[currentType] || null;
+    },
+
+    /**
+     * Determine required type for a value
+     * @param {number} value - The value to store
+     * @returns {number} Minimum type byte that can hold this value
+     */
+    getRequiredType(value) {
+        if (value <= 32767) return 0x0e;           // Int16
+        if (value <= 2147483647) return 0x08;      // Int32
+        return 0x07;                                // Double
+    },
+
+    /**
+     * Upgrade a field's type to accommodate larger values
+     * @param {Uint8Array} data - Binary data
+     * @param {Object} field - Field info from findField
+     * @param {number} newType - Target type byte
+     * @param {number} currentValue - Current value to preserve
+     * @returns {Uint8Array|null} New binary data or null on failure
+     */
+    upgradeFieldType(data, field, newType, currentValue) {
+        if (!field) return null;
+        
+        const oldTypeInfo = this.getTypeInfo(field.type);
+        const newTypeInfo = this.getTypeInfo(newType);
+        
+        if (!oldTypeInfo || !newTypeInfo) return null;
+        if (oldTypeInfo.size < 0 || newTypeInfo.size < 0) return null; // Can't upgrade variable-length types
+        
+        const sizeDiff = newTypeInfo.size - oldTypeInfo.size;
+        if (sizeDiff <= 0) return null; // Only upgrade to larger types
+        
+        // Calculate positions
+        const beforeField = data.slice(0, field.typeOffset);
+        const afterValue = data.slice(field.valueOffset + oldTypeInfo.size);
+        
+        // Build new array
+        const newData = new Uint8Array(data.length + sizeDiff);
+        let offset = 0;
+        
+        // Copy everything before type byte
+        newData.set(beforeField, offset);
+        offset += beforeField.length;
+        
+        // Write new type byte
+        newData[offset] = newType;
+        offset += 1;
+        
+        // Write value with new type
+        if (newType === 0x08) {
+            // Int32 (4 bytes, big-endian)
+            const val = Math.max(0, Math.min(2147483647, Math.floor(currentValue)));
+            newData[offset] = (val >> 24) & 0xFF;
+            newData[offset + 1] = (val >> 16) & 0xFF;
+            newData[offset + 2] = (val >> 8) & 0xFF;
+            newData[offset + 3] = val & 0xFF;
+            offset += 4;
+        } else if (newType === 0x07) {
+            // Double (8 bytes, big-endian)
+            const buffer = new ArrayBuffer(8);
+            const view = new DataView(buffer);
+            view.setFloat64(0, currentValue, false);
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < 8; i++) {
+                newData[offset + i] = bytes[i];
+            }
+            offset += 8;
+        } else {
+            return null; // Unsupported target type
+        }
+        
+        // Copy everything after old value
+        newData.set(afterValue, offset);
+        
+        return newData;
+    },
+
     /**
      * Find a binary field by name
      * @param {Uint8Array} data - Binary data
@@ -94,17 +232,30 @@ const BinaryFields = {
     readEstate(data, field) {
         if (!field) return null;
         
-        if (field.type === 0x07) {
+        if (field.type === 0x07 || field.type === 0x10) {
             // Double (8 bytes, big-endian)
-            const bytes = data.slice(field.valueOffset, field.valueOffset + 8);
-            const view = new DataView(bytes.buffer);
-            return view.getFloat64(0, false);
+            // Type 0x07 and 0x10 are both Double types in TheoTown's binary format
+            const buffer = new ArrayBuffer(8);
+            const bytes = new Uint8Array(buffer);
+            for (let i = 0; i < 8; i++) {
+                bytes[i] = data[field.valueOffset + i];
+            }
+            const view = new DataView(buffer);
+            const value = view.getFloat64(0, false);
+            
+            // Store original value for reference
+            field._originalValue = value;
+            
+            return value;
         } else if (field.type === 0x08) {
             // Int32 (4 bytes, big-endian)
             return (data[field.valueOffset] << 24) |
                    (data[field.valueOffset + 1] << 16) |
                    (data[field.valueOffset + 2] << 8) |
                    data[field.valueOffset + 3];
+        } else if (field.type === 0x0e) {
+            // Int16 (2 bytes, big-endian) - used in some save versions
+            return (data[field.valueOffset] << 8) | data[field.valueOffset + 1];
         }
         return null;
     },
@@ -118,8 +269,9 @@ const BinaryFields = {
     writeEstate(data, field, value) {
         if (!field) return;
         
-        if (field.type === 0x07) {
+        if (field.type === 0x07 || field.type === 0x10) {
             // Double (8 bytes, big-endian)
+            // Type 0x07 and 0x10 are both Double types in TheoTown's binary format
             const buffer = new ArrayBuffer(8);
             const view = new DataView(buffer);
             view.setFloat64(0, value, false);
@@ -134,6 +286,11 @@ const BinaryFields = {
             data[field.valueOffset + 1] = (value >> 16) & 0xFF;
             data[field.valueOffset + 2] = (value >> 8) & 0xFF;
             data[field.valueOffset + 3] = value & 0xFF;
+        } else if (field.type === 0x0e) {
+            // Int16 (2 bytes, big-endian) - used in some save versions
+            value = Math.max(0, Math.min(32767, Math.floor(value)));
+            data[field.valueOffset] = (value >> 8) & 0xFF;
+            data[field.valueOffset + 1] = value & 0xFF;
         }
     },
 

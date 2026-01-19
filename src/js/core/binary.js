@@ -70,6 +70,7 @@ const BinaryUtils = {
         INT32: 0x08,       // 4 bytes
         INT16: 0x0e,       // 2 bytes
         INT8: 0x0f,        // 1 byte
+        DOUBLE64: 0x10,    // 8 bytes (alternative Double type)
         BOOL_TRUE: 0x11,   // No value byte
         BOOL_FALSE: 0x12,  // No value byte
         STRING: 0x16       // Variable length

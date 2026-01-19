@@ -135,8 +135,47 @@ const Actions = {
      * @param {Event} e - Change event
      */
     handleMoneyChange(e) {
-        const value = parseInt(e.target.value) || 0;
-        CityManager.setMoney(value);
+        // Parse input: remove commas, handle scientific notation
+        let inputValue = e.target.value.replace(/,/g, '').trim();
+        
+        // Handle empty or invalid input
+        if (!inputValue || inputValue === '-') {
+            inputValue = '0';
+        }
+        
+        // Parse as number (handles scientific notation like 1.5e10)
+        let value = parseFloat(inputValue);
+        
+        // Validate parsed value
+        if (isNaN(value)) {
+            Display.showError('Invalid number format');
+            this.refreshDisplay();
+            return;
+        }
+        
+        // Handle Infinity (value exceeds Double max ~1.7976931348623157e+308)
+        if (!isFinite(value)) {
+            value = Number.MAX_VALUE;
+            Display.showWarning(
+                `Value exceeds maximum Double (~1.8×10³⁰⁸). Automatically set to max value.`
+            );
+        }
+        
+        // Clamp to non-negative
+        if (value < 0) value = 0;
+        
+        // Floor the value (no decimals for money)
+        value = Math.floor(value);
+        
+        const result = CityManager.setMoney(value);
+        
+        if (result.clamped) {
+            Display.showWarning(
+                `Value clamped to ${result.maxValue?.toLocaleString()} (max for ${result.typeInfo?.name || 'current type'}). ` +
+                `To store higher values, earn > ${result.maxValue?.toLocaleString()} in-game first.`
+            );
+        }
+        
         this.refreshDisplay();
     },
 

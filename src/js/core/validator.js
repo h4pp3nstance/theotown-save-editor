@@ -5,11 +5,12 @@
 
 const Validator = {
     // Field value constraints
+    // Note: estate max is dynamic based on binary type, see getEstateConstraint()
     CONSTRAINTS: {
         estate: { 
             min: 0, 
-            max: 2147483647, 
-            warnAbove: 1000000000,
+            // max is dynamic, determined by field type
+            warnAbove: 1000000000000, // 1 trillion - warn for very high values
             name: 'Money (Estate)'
         },
         rank: { 
@@ -27,6 +28,34 @@ const Validator = {
             maxLength: 255,
             name: 'City Name'
         }
+    },
+
+    // Max values by type byte
+    // Note: Double can store up to ~1.8e308, but we use MAX_VALUE for practical validation
+    TYPE_MAX_VALUES: {
+        0x0e: 32767,              // Int16
+        0x0f: 127,                // Int8
+        0x08: 2147483647,         // Int32
+        0x10: Number.MAX_VALUE,   // Double64 (alternative) - full Double range
+        0x07: Number.MAX_VALUE    // Double - full Double range
+    },
+
+    /**
+     * Get estate constraint with dynamic max based on field type
+     * @param {Object} estateField - Estate field info from BinaryFields
+     * @returns {Object} Constraint with correct max value
+     */
+    getEstateConstraint(estateField) {
+        const baseConstraint = { ...this.CONSTRAINTS.estate };
+        
+        if (estateField && estateField.type) {
+            baseConstraint.max = this.TYPE_MAX_VALUES[estateField.type] || Number.MAX_SAFE_INTEGER;
+        } else {
+            // Default to safe max if type unknown
+            baseConstraint.max = Number.MAX_SAFE_INTEGER;
+        }
+        
+        return baseConstraint;
     },
 
     // Valid gamemodes
@@ -72,9 +101,13 @@ const Validator = {
         if (displayData && displayData.editable) {
             const e = displayData.editable;
 
-            // Estate (Money)
+            // Estate (Money) - uses dynamic constraint based on field type
             if (e.binaryEstate !== null) {
-                const result = this.checkNumericField('estate', e.binaryEstate);
+                const estateField = binaryFields?.ESTATE;
+                const result = this.checkNumericFieldWithConstraint(
+                    this.getEstateConstraint(estateField), 
+                    e.binaryEstate
+                );
                 if (result.error) errors.push(result.error);
                 if (result.warning) warnings.push(result.warning);
             }
@@ -116,9 +149,20 @@ const Validator = {
     checkNumericField(fieldName, value) {
         const constraint = this.CONSTRAINTS[fieldName];
         if (!constraint) return {};
+        return this.checkNumericFieldWithConstraint(constraint, value);
+    },
+
+    /**
+     * Check a numeric field against a specific constraint
+     * @param {Object} constraint - Constraint object with min, max, warnAbove, name
+     * @param {number} value - Current value
+     * @returns {Object} { error, warning }
+     */
+    checkNumericFieldWithConstraint(constraint, value) {
+        if (!constraint) return {};
 
         const result = {};
-        const displayName = constraint.name || fieldName;
+        const displayName = constraint.name || 'Field';
 
         // Check for non-numeric
         if (typeof value !== 'number' || isNaN(value)) {
@@ -129,10 +173,10 @@ const Validator = {
         // Check min/max bounds
         if (value < constraint.min) {
             result.error = `${displayName}: Value ${value} is below minimum (${constraint.min})`;
-        } else if (value > constraint.max) {
-            result.error = `${displayName}: Value ${value} exceeds maximum (${constraint.max})`;
+        } else if (constraint.max !== undefined && value > constraint.max) {
+            result.error = `${displayName}: Value ${value.toLocaleString()} exceeds maximum (${constraint.max.toLocaleString()})`;
         } else if (constraint.warnAbove && value > constraint.warnAbove) {
-            result.warning = `${displayName}: High value (${value.toLocaleString()}) may cause game issues`;
+            result.warning = `${displayName}: Very high value (${value.toLocaleString()}) - use with caution`;
         }
 
         return result;
@@ -166,10 +210,17 @@ const Validator = {
      * Quick validation check (for real-time validation)
      * @param {string} fieldName - Field being edited
      * @param {*} value - New value
+     * @param {Object} fieldInfo - Optional field info (for dynamic constraints like estate)
      * @returns {Object} { valid, message }
      */
-    quickCheck(fieldName, value) {
-        const constraint = this.CONSTRAINTS[fieldName];
+    quickCheck(fieldName, value, fieldInfo) {
+        let constraint = this.CONSTRAINTS[fieldName];
+        
+        // For estate, get dynamic constraint based on field type
+        if (fieldName === 'estate' && fieldInfo) {
+            constraint = this.getEstateConstraint(fieldInfo);
+        }
+        
         if (!constraint) return { valid: true };
 
         if (fieldName === 'name') {
@@ -190,7 +241,7 @@ const Validator = {
         if (numValue < constraint.min) {
             return { valid: false, message: `Min: ${constraint.min}` };
         }
-        if (numValue > constraint.max) {
+        if (constraint.max !== undefined && numValue > constraint.max) {
             return { valid: false, message: `Max: ${constraint.max.toLocaleString()}` };
         }
 
